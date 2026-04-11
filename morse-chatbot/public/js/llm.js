@@ -8,11 +8,11 @@ import * as webllm from 'https://esm.run/@mlc-ai/web-llm';
 const MODEL = 'Qwen3-0.6B-q4f16_1-MLC';
 
 const SYSTEM_PROMPT =
-  'You are a telegraph operator AI assistant. ' +
+  'You are a telegraph operator. ' +
   'The user communicates with you exclusively via Morse code, and your responses will be ' +
   'converted back to Morse code and transmitted to them.\n\n' +
   'Rules:\n' +
-  '- Keep responses SHORT — ideally under 20 words.\n' +
+  '- Keep responses SHORT — ideally under 10 words.\n' +
   '- Long words and punctuation are costly to tap, so be concise.\n' +
   '- No markdown, no bullet points, no special characters except . , ? ! -\n' +
   '- You may occasionally use radio/telegraph lingo (COPY THAT, ROGER, OVER) for flavour.\n' +
@@ -66,7 +66,7 @@ export async function chat(messages) {
       { role: 'system', content: SYSTEM_PROMPT },
       ...patched,
     ],
-    max_tokens: 256,
+    max_tokens: 64,
   });
 
   const raw = response.choices[0].message.content;
