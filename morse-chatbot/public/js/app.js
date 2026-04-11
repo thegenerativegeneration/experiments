@@ -3,8 +3,8 @@
  * Wires together: tap detector, morse codec, audio, waveform, chat UI, and API calls.
  */
 
-import { morseToText, textToMorse } from './morse.js';
-import { beep, playMorse }          from './audio.js';
+import { morseToText, textToMorse, MORSE_MAP } from './morse.js';
+import { startTone, stopTone, playMorse } from './audio.js';
 import { createWaveform }           from './waveform.js';
 import { createTapDetector }        from './tap.js';
 import { appendMessage, appendThinking } from './chat.js';
@@ -16,10 +16,12 @@ const sendBtn        = document.getElementById('send-btn');
 const clearBtn       = document.getElementById('clear-btn');
 const statusEl       = document.getElementById('status');
 const tapKey         = document.getElementById('tap-key');
+const refBody        = document.getElementById('morse-ref-body');
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let currentSymbol = '';  // dots/dashes not yet committed as a letter
 let currentMorse  = '';  // full morse string for the current message
+let isBusy        = false; // true while waiting for a reply or playing audio
 const history     = []; // {role, content} pairs sent to the API
 
 // ── Waveform ──────────────────────────────────────────────────────────────────
@@ -47,9 +49,10 @@ const tap = createTapDetector({
   onPressStart() {
     waveform.setActive(true);
     tapKey.classList.add('active');
-    beep(30, 700, 0.1);  // soft click feedback
+    startTone();
   },
   onPressEnd() {
+    stopTone();
     waveform.setActive(false);
     tapKey.classList.remove('active');
   },
@@ -57,7 +60,6 @@ const tap = createTapDetector({
     currentSymbol += sym;
     setStatus(sym === '.' ? 'DOT' : 'DASH');
     updateDisplay();
-    beep(sym === '.' ? 80 : 240, 700);
   },
   onLetterCommit(code) {
     currentMorse  += (currentMorse && !currentMorse.endsWith('/ ') ? ' ' : '') + code;
@@ -92,6 +94,7 @@ clearBtn.addEventListener('click', () => {
 sendBtn.addEventListener('click', sendMessage);
 
 async function sendMessage() {
+  if (isBusy) return;
   tap.flush();
   const morse = currentMorse.trim();
   if (!morse) return;
@@ -103,6 +106,7 @@ async function sendMessage() {
   currentSymbol = '';
   currentMorse  = '';
   updateDisplay();
+  isBusy = true;
   sendBtn.disabled = true;
   setStatus('SENDING\u2026', 0);
 
@@ -130,10 +134,30 @@ async function sendMessage() {
 
   } catch (err) {
     thinking.remove();
+    history.pop(); // remove the user message that never got a reply
     appendMessage('bot', '... --- ...', 'Error: ' + err.message);
     setStatus('ERROR');
+  } finally {
+    isBusy = false;
   }
 }
+
+// ── Morse reference sidebar ───────────────────────────────────────────────────
+(function buildRef() {
+  const order = [
+    ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''),
+    ...'0123456789'.split(''),
+    ...Object.values(MORSE_MAP).filter(c => !/[A-Z0-9]/.test(c)),
+  ];
+  for (const char of order) {
+    const code = Object.keys(MORSE_MAP).find(k => MORSE_MAP[k] === char);
+    if (!code) continue;
+    const row = document.createElement('div');
+    row.className = 'mt-row';
+    row.innerHTML = `<span class="mt-char">${char}</span><span class="mt-code">${code}</span>`;
+    refBody.appendChild(row);
+  }
+})();
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 updateDisplay();

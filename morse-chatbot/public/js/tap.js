@@ -67,6 +67,9 @@ export function createTapDetector(callbacks) {
     clearTimeout(letterTimer);
     clearTimeout(wordTimer);
     if (currentCode) commitLetter();
+    // commitLetter() sets a new wordTimer; clear it so it doesn't fire
+    // unexpectedly while the message is being sent/received.
+    clearTimeout(wordTimer);
   }
 
   /** Bind keyboard events to the document. */

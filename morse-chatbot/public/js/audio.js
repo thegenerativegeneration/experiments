@@ -10,23 +10,52 @@ function getCtx() {
   return audioCtx;
 }
 
-/** Play a single sine-wave beep. */
-export function beep(durationMs = 80, freqHz = 700, vol = 0.35) {
+// ── Sustained tone (held while key is pressed) ────────────────────────────────
+let _toneOsc  = null;
+let _toneGain = null;
+
+/** Start a continuous tone. Call stopTone() when the key is released. */
+export function startTone(freqHz = 700, vol = 0.35) {
+  if (_toneOsc) stopTone();          // safety: don't stack tones
+  const ctx  = getCtx();
+  _toneOsc   = ctx.createOscillator();
+  _toneGain  = ctx.createGain();
+  _toneOsc.connect(_toneGain);
+  _toneGain.connect(ctx.destination);
+  _toneOsc.type = 'sine';
+  _toneOsc.frequency.value = freqHz;
+  const t = ctx.currentTime;
+  _toneGain.gain.setValueAtTime(0, t);
+  _toneGain.gain.linearRampToValueAtTime(vol, t + 0.005);
+  _toneOsc.start(t);
+}
+
+/** Stop the sustained tone with a short fade to avoid a click. */
+export function stopTone() {
+  if (!_toneOsc) return;
   const ctx = getCtx();
+  const t   = ctx.currentTime;
+  _toneGain.gain.setValueAtTime(_toneGain.gain.value, t);
+  _toneGain.gain.linearRampToValueAtTime(0, t + 0.008);
+  _toneOsc.stop(t + 0.01);
+  _toneOsc  = null;
+  _toneGain = null;
+}
+
+/** Play a fixed-duration beep (used internally by playMorse). */
+function beep(durationMs, freqHz = 700, vol = 0.35) {
+  const ctx  = getCtx();
   const osc  = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.connect(gain);
   gain.connect(ctx.destination);
-
   osc.type = 'sine';
   osc.frequency.value = freqHz;
-
   const t = ctx.currentTime;
   gain.gain.setValueAtTime(0, t);
   gain.gain.linearRampToValueAtTime(vol, t + 0.005);
   gain.gain.linearRampToValueAtTime(vol, t + durationMs / 1000 - 0.01);
   gain.gain.linearRampToValueAtTime(0,   t + durationMs / 1000);
-
   osc.start(t);
   osc.stop(t + durationMs / 1000 + 0.01);
 }

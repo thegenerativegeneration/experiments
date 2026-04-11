@@ -1,13 +1,24 @@
 /**
  * POST /chat
- * Accepts a conversation history, forwards it to Claude, returns the reply.
+ * Accepts a conversation history, forwards it to an OpenAI-compatible API,
+ * and returns the reply.
+ *
+ * Environment variables:
+ *   OPENAI_API_KEY  – required
+ *   OPENAI_BASE_URL – optional, defaults to https://api.openai.com/v1
+ *   OPENAI_MODEL    – optional, defaults to gpt-4o
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { Router } from 'express';
 
 const router = Router();
-const client = new Anthropic(); // reads ANTHROPIC_API_KEY from env
+const client = new OpenAI({
+  apiKey:  process.env.OPENAI_API_KEY,
+  baseURL: process.env.OPENAI_BASE_URL, // undefined → library default
+});
+
+const MODEL = process.env.OPENAI_MODEL ?? 'gpt-4o';
 
 const SYSTEM_PROMPT = `You are a telegraph operator AI assistant. \
 The user communicates with you exclusively via Morse code, and your responses will be \
@@ -28,14 +39,16 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
+    const response = await client.chat.completions.create({
+      model: MODEL,
       max_tokens: 256,
-      system: SYSTEM_PROMPT,
-      messages,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...messages,
+      ],
     });
 
-    const reply = response.content[0].text.trim().toUpperCase();
+    const reply = response.choices[0].message.content.trim().toUpperCase();
     res.json({ reply });
   } catch (err) {
     console.error('[chat route]', err.message);

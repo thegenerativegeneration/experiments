@@ -14,29 +14,40 @@
   <span class="subtitle">MORSE CHATBOT &nbsp;&bull;&nbsp; TAP TO SPEAK</span>
 </header>
 
-<div id="chat"></div>
+<div id="content">
 
-<div id="input-panel">
-  <div id="morse-display">&nbsp;</div>
-  <div id="decoded-display">decoded text appears here&hellip;</div>
+  <div id="main">
+    <div id="chat"></div>
 
-  <div class="key-row">
-    <button id="tap-key" tabindex="0">TAP</button>
-    <div id="waveform"></div>
-    <div class="key-hints">
-      <span><span class="k">SPACE</span> or click button to tap</span>
-      <span><span class="k">&lt;200ms</span> = dot &nbsp;&middot;&nbsp; <span class="k">&ge;200ms</span> = dash</span>
-      <span><span class="k">pause 700ms</span> = next letter</span>
-      <span><span class="k">pause 1.6s</span> = word space</span>
-      <span><span class="k">ENTER</span> = send message</span>
+    <div id="input-panel">
+      <div id="morse-display">&nbsp;</div>
+      <div id="decoded-display">decoded text appears here&hellip;</div>
+
+      <div class="key-row">
+        <button id="tap-key" tabindex="0">TAP</button>
+        <div id="waveform"></div>
+        <div class="key-hints">
+          <span><span class="k">SPACE</span> or click button to tap</span>
+          <span><span class="k">&lt;200ms</span> = dot &nbsp;&middot;&nbsp; <span class="k">&ge;200ms</span> = dash</span>
+          <span><span class="k">pause 700ms</span> = next letter</span>
+          <span><span class="k">pause 1.6s</span> = word space</span>
+          <span><span class="k">ENTER</span> = send message</span>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button id="send-btn" disabled>SEND [ENTER]</button>
+        <button id="clear-btn">CLEAR</button>
+        <span id="status">READY</span>
+      </div>
     </div>
   </div>
 
-  <div class="action-row">
-    <button id="send-btn" disabled>SEND [ENTER]</button>
-    <button id="clear-btn">CLEAR</button>
-    <span id="status">READY</span>
-  </div>
+  <aside id="morse-ref">
+    <div id="morse-ref-title">REFERENCE</div>
+    <div id="morse-ref-body"></div>
+  </aside>
+
 </div>
 
 <script type="module" src="js/app.js"></script>
