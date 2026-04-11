@@ -4,6 +4,7 @@
  */
 
 import { morseToText, textToMorse, MORSE_MAP } from './morse.js';
+import { initLLM, chat } from './llm.js';
 import { startTone, stopTone, playMorse } from './audio.js';
 import { createWaveform }           from './waveform.js';
 import { createTapDetector }        from './tap.js';
@@ -113,15 +114,7 @@ async function sendMessage() {
   const thinking = appendThinking();
 
   try {
-    const res = await fetch('/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: history }),
-    });
-
-    if (!res.ok) throw new Error(await res.text());
-
-    const { reply } = await res.json();
+    const reply = await chat(history);
     history.push({ role: 'assistant', content: reply });
 
     const botMorse = textToMorse(reply);
@@ -161,3 +154,25 @@ async function sendMessage() {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 updateDisplay();
+
+// ── LLM bootstrap ─────────────────────────────────────────────────────────────
+const loadingOverlay = document.getElementById('loading-overlay');
+const loadingBar     = document.getElementById('loading-bar');
+const loadingText    = document.getElementById('loading-text');
+
+// Keep UI locked until the model is ready
+tapKey.disabled  = true;
+clearBtn.disabled = true;
+
+initLLM((report) => {
+  loadingBar.style.width = (report.progress * 100).toFixed(1) + '%';
+  loadingText.textContent = report.text;
+}).then(() => {
+  loadingOverlay.classList.add('hidden');
+  tapKey.disabled   = false;
+  clearBtn.disabled = false;
+  setStatus('READY', 0);
+}).catch((err) => {
+  loadingText.textContent = 'ERROR: ' + err.message;
+  loadingText.style.color = 'var(--red)';
+});
