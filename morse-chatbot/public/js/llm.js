@@ -5,7 +5,7 @@
 
 import * as webllm from 'https://esm.run/@mlc-ai/web-llm';
 
-const MODEL = 'SmolLM2-360M-Instruct-q4f16_1-MLC';
+const MODEL = 'Qwen3-0.6B-q4f16_1-MLC';
 
 const SYSTEM_PROMPT =
   'You are a telegraph operator AI assistant. ' +
@@ -32,20 +32,43 @@ export async function initLLM(onProgress) {
 }
 
 /**
+ * Strip <think>…</think> blocks that Qwen3 emits in thinking mode.
+ * Also handles an unclosed <think> tag (model cut off mid-thought).
+ * @param {string} text
+ * @returns {string}
+ */
+function stripThinkTags(text) {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/g, '')  // complete blocks
+    .replace(/<think>[\s\S]*/g, '')             // unclosed block
+    .trim();
+}
+
+/**
  * Run a chat completion against the loaded model.
+ * Appends /no_think to the last user message so Qwen3 skips its reasoning
+ * chain — the history passed in is never mutated.
  * @param {{ role: string, content: string }[]} messages  conversation history
  * @returns {Promise<string>} uppercased reply text
  */
 export async function chat(messages) {
   if (!engine) throw new Error('LLM not initialised');
 
+  // Append /no_think to the last user turn without mutating the caller's array.
+  const patched = messages.map((m, i) =>
+    i === messages.length - 1 && m.role === 'user'
+      ? { ...m, content: m.content + ' /no_think' }
+      : m
+  );
+
   const response = await engine.chat.completions.create({
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
-      ...messages,
+      ...patched,
     ],
     max_tokens: 256,
   });
 
-  return response.choices[0].message.content.trim().toUpperCase();
+  const raw = response.choices[0].message.content;
+  return stripThinkTags(raw).toUpperCase();
 }
