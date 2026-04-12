@@ -11,5 +11,5 @@ app.use(express.json());
 app.use(express.static(join(__dirname, 'public')));
 
 app.listen(PORT, () => {
-  console.log(`Morse chatbot → http://localhost:${PORT}`);
+  console.log(`Experiments → http://localhost:${PORT}`);
 });
