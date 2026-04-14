@@ -37,9 +37,8 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
-    TrainingArguments,
 )
-from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
+from trl import SFTConfig, SFTTrainer
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -158,11 +157,11 @@ def main(argv: list[str] | None = None) -> None:
     # ── LoRA ──────────────────────────────────────────────────────────────────
     lora_config = build_lora_config(cfg)
 
-    # ── Training arguments ────────────────────────────────────────────────────
+    # ── Training arguments (SFTConfig extends TrainingArguments) ─────────────
     use_bf16 = cfg.get("bf16", True)
     use_fp16 = cfg.get("fp16", False)
 
-    training_args = TrainingArguments(
+    training_args = SFTConfig(
         output_dir=output_dir,
         num_train_epochs=num_epochs,
         per_device_train_batch_size=cfg.get("per_device_train_batch_size", 4),
@@ -186,6 +185,10 @@ def main(argv: list[str] | None = None) -> None:
         report_to="none",
         push_to_hub=push_to_hub,
         hub_model_id=hub_model_id or None,
+        # SFT-specific fields (moved out of SFTTrainer in TRL ≥ 0.9)
+        dataset_text_field="text",
+        max_seq_length=cfg.get("max_seq_length", 2048),
+        packing=cfg.get("packing", True),
     )
 
     # ── Trainer ───────────────────────────────────────────────────────────────
@@ -195,9 +198,6 @@ def main(argv: list[str] | None = None) -> None:
         train_dataset=train_ds,
         eval_dataset=eval_ds,
         peft_config=lora_config,
-        dataset_text_field="text",
-        max_seq_length=cfg.get("max_seq_length", 2048),
-        packing=cfg.get("packing", True),
     )
 
     # ── Train ─────────────────────────────────────────────────────────────────

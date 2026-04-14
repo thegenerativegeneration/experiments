@@ -42,7 +42,7 @@ import json
 import os
 import random
 import sys
-import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -250,6 +250,10 @@ def main(argv: list[str] | None = None) -> None:
         help="Override examples_per_chunk",
     )
     parser.add_argument(
+        "--workers", type=int, default=8,
+        help="Number of parallel API workers (default: 8)",
+    )
+    parser.add_argument(
         "--limit", type=int, default=0,
         help="Process only the first N chunks (0 = all)",
     )
@@ -288,17 +292,29 @@ def main(argv: list[str] | None = None) -> None:
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     total_generated = 0
+
+    def _generate_chunk(chunk: dict[str, Any]) -> list[dict[str, Any]]:
+        return generate_examples(
+            chunk, n_per_chunk, config, provider, model, args.dry_run
+        )
+
     with output_file.open("w", encoding="utf-8") as fout:
-        for chunk in tqdm(chunks, desc="Generating"):
-            examples = generate_examples(
-                chunk, n_per_chunk, config, provider, model, args.dry_run
-            )
-            for ex in examples:
-                fout.write(json.dumps(ex, ensure_ascii=False) + "\n")
-            total_generated += len(examples)
-            # Brief pause between chunks to respect rate limits
-            if not args.dry_run:
-                time.sleep(0.5)
+        with ThreadPoolExecutor(max_workers=args.workers) as pool:
+            futures = {pool.submit(_generate_chunk, chunk): chunk for chunk in chunks}
+            for future in tqdm(
+                as_completed(futures), total=len(futures), desc="Generating"
+            ):
+                try:
+                    examples = future.result()
+                except Exception as exc:  # noqa: BLE001
+                    chunk = futures[future]
+                    tqdm.write(
+                        f"  WARNING: chunk {chunk.get('chunk_id')} failed: {exc}"
+                    )
+                    continue
+                for ex in examples:
+                    fout.write(json.dumps(ex, ensure_ascii=False) + "\n")
+                total_generated += len(examples)
 
     print(f"\nGenerated {total_generated} examples → {output_file}")
 
