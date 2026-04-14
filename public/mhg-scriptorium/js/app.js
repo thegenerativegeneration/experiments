@@ -149,6 +149,14 @@ function resetSeal() {
   setStatus('Schrîp dîne vrâge unt sigel si.');
 }
 
+function resetConversation() {
+  history.length = 0;
+  document.getElementById('chat').innerHTML = '';
+  inputEl.value = '';
+  resetSeal();
+  sealTarget.classList.remove('over');
+}
+
 function armSeal() {
   if (isBusy) return;
   const text = inputEl.value.trim();
@@ -248,12 +256,8 @@ torchBtn.addEventListener('click', () => {
     return;
   }
   archiveGhostText();
-  history.length = 0;
   document.body.classList.add('burning');
-  document.getElementById('chat').innerHTML = '';
-  inputEl.value = '';
-  resetSeal();
-  sealTarget.classList.remove('over');
+  resetConversation();
   setTimeout(() => document.body.classList.remove('burning'), 550);
   setStatus('Daz pergamen ist verbrant unde rëin.');
 });
@@ -268,10 +272,19 @@ keyBtn.addEventListener('click', () => {
 
 document.querySelectorAll('.persona').forEach((btn) => {
   btn.addEventListener('click', () => {
+    if (isBusy) {
+      setStatus('Warte, unz daz orakel geantwürte.');
+      return;
+    }
+    const nextPersona = btn.dataset.persona;
+    if (nextPersona === personality) return;
+    archiveGhostText();
+    resetConversation();
     document.querySelectorAll('.persona').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
-    personality = btn.dataset.persona;
-    setStatus(`Triptichon: ${btn.textContent}`);
+    personality = nextPersona;
+    appendMessage('assistant', 'Sælde unde heil, wanderære. Waz ist dîn ger?');
+    setStatus(`Triptichon: ${btn.textContent}. Daz gespræche ist niuwe.`);
   });
 });
 
