@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """
-collect_texts.py — Download public-domain Middle High German source texts.
+collect_texts.py — Download Middle High German source texts from the MHDBDB TEI corpus.
 
 Texts are fetched from the Mittelhochdeutsche Begriffsdatenbank (MHDBDB),
 University of Salzburg, which publishes its TEI-encoded corpus on GitHub at
-https://github.com/DigitalHumanitiesCraft/mhdbdb-tei-only (CC BY-NC-SA 4.0).
+https://github.com/DigitalHumanitiesCraft/mhdbdb-tei-only under the
+CC BY-NC-SA 4.0 license.
 
 The raw `<w>` token forms are extracted from the TEI XML and saved as plain
-UTF-8 .txt files in data/raw/.
+UTF-8 .txt files in data/raw/. These extracted text files are derived from the
+licensed TEI corpus and should be treated as subject to the same CC BY-NC-SA
+4.0 requirements when reused or redistributed: provide attribution, do not
+use them for commercial purposes, and share adaptations under the same
+license.
 
 Usage::
 
