@@ -2,8 +2,12 @@
 """
 collect_texts.py — Download public-domain Middle High German source texts.
 
-Texts are fetched from Project Gutenberg and Wikisource, stripped of front/back
-matter, and saved as plain UTF-8 .txt files in data/raw/.
+Texts are fetched from the Mittelhochdeutsche Begriffsdatenbank (MHDBDB),
+University of Salzburg, which publishes its TEI-encoded corpus on GitHub at
+https://github.com/DigitalHumanitiesCraft/mhdbdb-tei-only (CC BY-NC-SA 4.0).
+
+The raw `<w>` token forms are extracted from the TEI XML and saved as plain
+UTF-8 .txt files in data/raw/.
 
 Usage::
 
@@ -20,173 +24,137 @@ import sys
 import time
 from pathlib import Path
 from typing import NamedTuple
+from xml.etree import ElementTree as ET
 
 import requests
-from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 # ---------------------------------------------------------------------------
 # Source catalogue
 # ---------------------------------------------------------------------------
 
+# Base URL for raw MHDBDB TEI files on GitHub (main branch).
+# Each file is named <SIGLE>.tei.xml where SIGLE is the short work identifier
+# used by the MHDBDB (see authority-files/works.xml in the same repo).
+_MHDBDB_BASE = (
+    "https://raw.githubusercontent.com/"
+    "DigitalHumanitiesCraft/mhdbdb-tei-only/main/tei"
+)
+
+
 class TextSource(NamedTuple):
-    slug: str                           # filename stem used to save the file
-    url: str                            # direct plain-text or HTML URL
-    format: str                         # "gutenberg" | "wikisource_html" | "plain"
+    slug: str         # output filename stem
+    url: str          # raw GitHub URL of the TEI XML file
     description: str
-    fallback_urls: tuple[str, ...] = () # alternative URLs tried in order on 404
-    search_term: str = ""               # if set, search de.wikisource.org API as last resort
 
 
 SOURCES: list[TextSource] = [
-    # All sourced from de.wikisource.org; search_term ensures the API can find
-    # the correct page if the primary URL returns 404 or redirects elsewhere.
     TextSource(
         slug="nibelungenlied",
-        url="https://de.wikisource.org/wiki/Das_Nibelungenlied",
-        format="wikisource_html",
-        description="Das Nibelungenlied (MHG original, Wikisource)",
-        search_term="Das Nibelungenlied",
+        url=f"{_MHDBDB_BASE}/NBB.tei.xml",
+        description="Nibelungenlied (MHDBDB siglum NBB)",
     ),
     TextSource(
         slug="parzival_wolfram",
-        url="https://de.wikisource.org/wiki/Parzival_(Wolfram_von_Eschenbach)",
-        format="wikisource_html",
-        description="Parzival – Wolfram von Eschenbach (Wikisource)",
-        fallback_urls=("https://de.wikisource.org/wiki/Parzival",),
-        search_term="Parzival Wolfram von Eschenbach",
+        url=f"{_MHDBDB_BASE}/PZ.tei.xml",
+        description="Parzival – Wolfram von Eschenbach (MHDBDB siglum PZ)",
     ),
     TextSource(
         slug="tristan_gottfried",
-        url="https://de.wikisource.org/wiki/Tristan_(Gottfried_von_Stra%C3%9Fburg)",
-        format="wikisource_html",
-        description="Tristan – Gottfried von Strassburg (Wikisource)",
-        search_term="Tristan Gottfried von Strassburg",
+        url=f"{_MHDBDB_BASE}/TR.tei.xml",
+        description="Tristan – Gottfried von Straßburg (MHDBDB siglum TR)",
     ),
     TextSource(
         slug="iwein_hartmann",
-        url="https://de.wikisource.org/wiki/Iwein_(Hartmann_von_Aue)",
-        format="wikisource_html",
-        description="Iwein – Hartmann von Aue (Wikisource)",
-        search_term="Iwein Hartmann von Aue",
+        url=f"{_MHDBDB_BASE}/IW.tei.xml",
+        description="Iwein – Hartmann von Aue (MHDBDB siglum IW)",
     ),
     TextSource(
         slug="arme_heinrich",
-        url="https://de.wikisource.org/wiki/Der_arme_Heinrich_(Hartmann_von_Aue)",
-        format="wikisource_html",
-        description="Der arme Heinrich – Hartmann von Aue (Wikisource)",
-        search_term="Der arme Heinrich Hartmann von Aue",
+        url=f"{_MHDBDB_BASE}/DAH.tei.xml",
+        description="Der arme Heinrich – Hartmann von Aue (MHDBDB siglum DAH)",
     ),
     TextSource(
         slug="walther_lieder",
-        url="https://de.wikisource.org/wiki/Walther_von_der_Vogelweide",
-        format="wikisource_html",
-        description="Walther von der Vogelweide – Lieder (Wikisource)",
-        search_term="Walther von der Vogelweide",
+        url=f"{_MHDBDB_BASE}/WVV.tei.xml",
+        description="Walther von der Vogelweide – Lyrik (MHDBDB siglum WVV)",
     ),
     TextSource(
         slug="minnesang_fruehling",
-        url="https://de.wikisource.org/wiki/Des_Minnesangs_Fr%C3%BChling",
-        format="wikisource_html",
-        description="Minnesangs Frühling (Wikisource)",
-        search_term="Des Minnesangs Frühling",
+        url=f"{_MHDBDB_BASE}/MNL.tei.xml",
+        description="Namenlose Lieder / Minnesangs Frühling (MHDBDB siglum MNL)",
     ),
 ]
 
 # ---------------------------------------------------------------------------
-# Gutenberg helpers
+# TEI extraction
 # ---------------------------------------------------------------------------
 
-# Regex patterns to strip Gutenberg header / footer boilerplate
-_GUTENBERG_START = re.compile(
-    r"\*\*\*\s*START OF (THE|THIS) PROJECT GUTENBERG", re.IGNORECASE
-)
-_GUTENBERG_END = re.compile(
-    r"\*\*\*\s*END OF (THE|THIS) PROJECT GUTENBERG", re.IGNORECASE
-)
+_TEI_NS = "http://www.tei-c.org/ns/1.0"
+_W   = f"{{{_TEI_NS}}}w"
+_PC  = f"{{{_TEI_NS}}}pc"
+_L   = f"{{{_TEI_NS}}}l"
+_LG  = f"{{{_TEI_NS}}}lg"
+_DIV = f"{{{_TEI_NS}}}div"
+_P   = f"{{{_TEI_NS}}}p"
+_BODY = f"{{{_TEI_NS}}}body"
 
 
-def _strip_gutenberg(raw: str) -> str:
-    """Remove Project Gutenberg header and footer."""
-    start_match = _GUTENBERG_START.search(raw)
-    end_match = _GUTENBERG_END.search(raw)
-    if start_match:
-        raw = raw[start_match.end():]
-    if end_match:
-        raw = raw[: end_match.start()]
-    return raw.strip()
+def _line_tokens(container: ET.Element) -> list[str]:
+    """Return word-form tokens from a single <l> or <p> element."""
+    tokens: list[str] = []
+    for child in container.iter():
+        if child.tag == _W:
+            # itertext() handles any inline <hi> elements (enlarged initials)
+            text = "".join(child.itertext()).strip()
+            if text:
+                tokens.append(text)
+        elif child.tag == _PC:
+            punct = "".join(child.itertext()).strip()
+            if punct:
+                join = child.get("join", "")
+                if join in ("left", "both") and tokens:
+                    tokens[-1] += punct  # attach to preceding word
+                else:
+                    tokens.append(punct)
+    return tokens
 
 
-# ---------------------------------------------------------------------------
-# Wikisource helpers
-# ---------------------------------------------------------------------------
+def _extract_mhdbdb_tei(xml: str) -> str:
+    """Extract plain MHG verse text from an MHDBDB TEI-XML file.
 
-
-def _extract_wikisource(html: str) -> str:
-    """Extract article body text from a Wikisource HTML page."""
-    soup = BeautifulSoup(html, "lxml")
-    # Remove navigation, TOC, edit links, images, references, and other non-text elements
-    for tag in soup.select(
-        "sup, .mw-editsection, #toc, .navbox, .sister-project, "
-        ".mw-references-wrap, table.wikitable, "
-        ".thumb, figure, figcaption, .thumbcaption, .gallery, "
-        ".mw-file-description-page, .floatnone, .floatleft, .floatright"
-    ):
-        tag.decompose()
-    content_div = (
-        soup.select_one("#mw-content-text .mw-parser-output")
-        or soup.select_one("#mw-content-text")
-    )
-    if content_div is None:
-        return soup.get_text(separator="\n")
-    lines = [line.strip() for line in content_div.get_text(separator="\n").splitlines()]
-    # Drop very short lines (page numbers, single characters)
-    lines = [l for l in lines if len(l) > 2]
-    return "\n".join(lines)
-
-
-_WIKISOURCE_MIN_CHARS = 1_000  # minimum content length to accept a search result
-
-
-def _wikisource_fetch_by_search(
-    query: str, session: requests.Session
-) -> str:
-    """Search de.wikisource.org via its API and return text of the best match.
-
-    Tries up to 5 search results in order, accepting the first one with
-    substantial content (>= ``_WIKISOURCE_MIN_CHARS`` characters).
+    Processes ``<l>`` (verse lines) and ``<p>`` (prose paragraphs) inside
+    ``<body>``, inserting blank lines between stanzas/chapters (``<lg>`` /
+    ``<div>`` boundaries).
     """
-    resp = session.get(
-        "https://de.wikisource.org/w/api.php",
-        headers=HEADERS,
-        timeout=30,
-        params={
-            "action": "query",
-            "list": "search",
-            "srsearch": query,
-            "srnamespace": 0,
-            "srlimit": 5,
-            "format": "json",
-        },
-    )
-    resp.raise_for_status()
-    results = resp.json().get("query", {}).get("search", [])
-    if not results:
-        raise ValueError(f"Wikisource API: no results for {query!r}")
+    root = ET.fromstring(xml)
+    body = root.find(f".//{_BODY}")
+    if body is None:
+        raise ValueError("No <body> element found in TEI XML")
 
-    for result in results:
-        title = result["title"]
-        url = "https://de.wikisource.org/wiki/" + title.replace(" ", "_")
-        try:
-            page_resp = session.get(url, headers=HEADERS, timeout=30)
-            page_resp.raise_for_status()
-            text = _extract_wikisource(page_resp.text)
-            if len(text) >= _WIKISOURCE_MIN_CHARS:
-                return text
-        except requests.RequestException:
-            continue
+    result: list[str] = []
 
-    raise ValueError(f"Wikisource API: no usable page found for {query!r}")
+    def _walk(el: ET.Element) -> None:
+        tag = el.tag
+        if tag == _L:
+            tokens = _line_tokens(el)
+            if tokens:
+                result.append(" ".join(tokens))
+        elif tag in (_LG, _DIV, _P):
+            # Blank line between stanzas / chapter / paragraph sections.
+            # NOTE: <p> is treated as a structural wrapper (like <lg>/<div>)
+            # because in MHDBDB TEI files the verse body is encoded as
+            # <body><p><l>…</l>…</p></body>.
+            if result and result[-1] != "":
+                result.append("")
+            for child in el:
+                _walk(child)
+        else:
+            for child in el:
+                _walk(child)
+
+    _walk(body)
+    return "\n".join(result).strip()
 
 
 # ---------------------------------------------------------------------------
@@ -197,20 +165,15 @@ def _wikisource_fetch_by_search(
 _CJK_RE = re.compile(
     r"[\u2E80-\u2EFF\u2F00-\u2FDF\u3000-\u303F\u3040-\u309F\u30A0-\u30FF"
     r"\u3100-\u312F\u3200-\u32FF\u3300-\u33FF\u3400-\u4DBF\u4E00-\u9FFF"
-    r"\uF900-\uFAFF\uFE30-\uFE4F\u20000-\u2A6DF\u2A700-\u2B73F]"
+    r"\uF900-\uFAFF\uFE30-\uFE4F]"
 )
 
-_MIN_CONTENT_CHARS = 5_000   # shortest acceptable text
+_MIN_CONTENT_CHARS = 1_000   # shortest acceptable text (guards against empty/error pages)
 _MAX_CJK_RATIO = 0.05        # ≤5 % CJK characters allowed
 
 
 def _validate_content(text: str, source_slug: str) -> None:
-    """Raise ``ValueError`` if *text* looks like the wrong document.
-
-    Checks:
-    * Minimum length — catches empty or near-empty pages.
-    * CJK character ratio — rejects accidentally downloaded Chinese/Japanese texts.
-    """
+    """Raise ``ValueError`` if *text* is too short or contains too many CJK chars."""
     if len(text) < _MIN_CONTENT_CHARS:
         raise ValueError(
             f"{source_slug}: content too short ({len(text):,} chars < {_MIN_CONTENT_CHARS:,})"
@@ -236,43 +199,11 @@ HEADERS = {
 
 
 def fetch_text(source: TextSource, session: requests.Session) -> str:
-    urls_to_try = [source.url, *source.fallback_urls]
-    last_error: Exception | None = None
-    for url in urls_to_try:
-        try:
-            response = session.get(url, headers=HEADERS, timeout=30)
-            response.raise_for_status()
-        except requests.HTTPError as exc:
-            if exc.response is not None and exc.response.status_code == 404:
-                last_error = exc
-                continue
-            raise
-
-        if source.format == "gutenberg":
-            text = _strip_gutenberg(response.text)
-        elif source.format == "wikisource_html":
-            text = _extract_wikisource(response.text)
-        else:
-            text = response.text.strip()
-
-        try:
-            _validate_content(text, source.slug)
-        except ValueError as exc:
-            tqdm.write(f"  warn  {exc} — trying next source")
-            last_error = exc
-            continue
-
-        return text
-
-    # All hard-coded URLs failed or produced invalid content; try Wikisource API search
-    if source.format == "wikisource_html" and source.search_term:
-        text = _wikisource_fetch_by_search(source.search_term, session)
-        _validate_content(text, source.slug)
-        return text
-
-    if last_error is not None:
-        raise last_error
-    raise RuntimeError(f"{source.slug}: no URL produced valid content")
+    response = session.get(source.url, headers=HEADERS, timeout=60)
+    response.raise_for_status()
+    text = _extract_mhdbdb_tei(response.text)
+    _validate_content(text, source.slug)
+    return text
 
 
 # ---------------------------------------------------------------------------
