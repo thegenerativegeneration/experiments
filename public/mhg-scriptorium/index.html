@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="gmh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daz Skriptorium</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="loading-overlay">
+    <div id="loading-box">
+      <div id="loading-title">DAZ SKRIPTORIUM ERWACHET</div>
+      <div id="loading-bar-wrap"><div id="loading-bar"></div></div>
+      <div id="loading-text">Daz orakel wirt bereit...</div>
+    </div>
+  </div>
+
+  <header>
+    <h1>Daz Skriptorium</h1>
+    <div class="subtitle">Ein mittelhochdûtschez orakel</div>
+    <div id="status">Tin tenke wartet...</div>
+  </header>
+
+  <main id="layout">
+    <aside id="chronicle-panel" class="panel">
+      <div class="panel-title">📖 Crônica</div>
+      <div id="chronicle-list"></div>
+    </aside>
+
+    <section id="scriptorium">
+      <div id="ghost-layer" aria-hidden="true"></div>
+      <div id="chat"></div>
+    </section>
+
+    <aside id="settings-panel" class="panel">
+      <div class="panel-title">🗝️ Sacristei</div>
+      <div class="setting-label">Daz triptichon</div>
+      <div id="triptych">
+        <button class="persona active" data-persona="knight">Der Rîter</button>
+        <button class="persona" data-persona="mystic">Der Mystære</button>
+        <button class="persona" data-persona="fool">Der Tôre</button>
+      </div>
+      <div class="setting-label">Humôres unt sternen</div>
+      <div id="humor-meter"><span id="humor-bar"></span></div>
+      <div id="stars-note"></div>
+    </aside>
+  </main>
+
+  <footer id="desk">
+    <div id="control-row">
+      <button id="chronicle-btn" title="Crônica tuon ûf" aria-label="Crônica tuon ûf">📖</button>
+      <button id="key-btn" title="Sacristei tuon ûf" aria-label="Sacristei tuon ûf">🗝️</button>
+      <button id="torch-btn" title="Verbrenne daz pergamen" aria-label="Verbrenne daz pergamen">🔥</button>
+    </div>
+
+    <label for="scribe-input">Schrîp in mittelhochdûtsch</label>
+    <div id="input-wrap">
+      <textarea id="scribe-input" placeholder="Sprechet..."></textarea>
+      <div id="quill-cursor">🪶<span id="ink-drop"></span></div>
+    </div>
+
+    <div id="seal-row">
+      <button id="wax-pot">1) Schmilze daz wachs</button>
+      <div id="seal-target">
+        <div id="wax-blob"></div>
+        <div id="seal-help">2) Ziuhe den signetrinc ûf daz wachs</div>
+      </div>
+      <button id="signet-ring" type="button" draggable="true" title="Ziuhe ze sigelen" aria-label="Ziuhe den signetrinc ze sigelen">💍</button>
+    </div>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
