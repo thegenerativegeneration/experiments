@@ -1,7 +1,5 @@
 # ── Data collection & preprocessing ──────────────────────────────────────────
 requests>=2.31.0
-beautifulsoup4>=4.12.0
-lxml>=4.9.0
 tqdm>=4.66.0
 
 # ── Tokenisation (fast, no model weights needed for chunking) ─────────────────
@@ -28,7 +26,6 @@ scipy>=1.13.0
 
 # ── Evaluation ────────────────────────────────────────────────────────────────
 evaluate>=0.4.0
-sacrebleu>=2.3.1
 nltk>=3.8.0
 
 # ── WebLLM conversion ─────────────────────────────────────────────────────────

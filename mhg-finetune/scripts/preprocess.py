@@ -88,38 +88,31 @@ def _chunk_text(
     min_tokens: int = MIN_TOKENS,
 ) -> list[str]:
     """Split *text* into overlapping token-bounded passages."""
-    # Work at word level for clean boundaries
-    words = text.split()
-    if not words:
+    normalized = " ".join(text.split())
+    if not normalized:
         return []
+
+    tokens = _ENCODING.encode(normalized)
+    if not tokens:
+        return []
+
+    if overlap >= target:
+        overlap = max(0, target - 1)
 
     chunks: list[str] = []
     start = 0
-    while start < len(words):
-        # Grow window until we hit the target token count
-        end = start + 1
-        while end <= len(words):
-            candidate = " ".join(words[start:end])
-            if _token_count(candidate) >= target:
-                break
-            end += 1
+    step = max(1, target - overlap)
 
-        passage = " ".join(words[start:end])
-        if _token_count(passage) >= min_tokens:
-            chunks.append(passage)
+    while start < len(tokens):
+        end = min(len(tokens), start + target)
+        chunk_tokens = tokens[start:end]
+        if len(chunk_tokens) >= min_tokens:
+            chunks.append(_ENCODING.decode(chunk_tokens).strip())
 
-        if end >= len(words):
+        if end >= len(tokens):
             break
 
-        # Move start forward, keeping `overlap` tokens of context
-        # Walk backward from `end` until we've kept ~overlap tokens
-        overlap_start = end - 1
-        while overlap_start > start:
-            overlap_text = " ".join(words[overlap_start:end])
-            if _token_count(overlap_text) >= overlap:
-                break
-            overlap_start -= 1
-        start = overlap_start
+        start += step
 
     return chunks
 

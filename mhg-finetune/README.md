@@ -15,7 +15,7 @@ from public-domain MHG source texts.
 
 | Step | Script | Description |
 |------|--------|-------------|
-| 1 | `collect_texts.py` | Download public-domain MHG texts (Gutenberg, Wikisource) |
+| 1 | `collect_texts.py` | Fetch MHDBDB TEI files from GitHub |
 | 2 | `preprocess.py` | Clean and chunk texts into ~350-token overlapping passages |
 | 3 | `generate_data.py` | Use GPT-4o / Claude to generate synthetic chat pairs from the passages |
 | 4 | `clean_data.py` | Filter, validate MHG authenticity, deduplicate, and split train/eval |
