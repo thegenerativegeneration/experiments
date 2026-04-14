@@ -1,6 +1,7 @@
 # Repository Overview
 
 - `morse-chatbot` (served from `public/morse-chatbot`)
+- `mhg-finetune` — fine-tuning pipeline for a Middle High German conversational LLM
 
 ## Purpose
 
@@ -17,7 +18,8 @@ The root of the repo provides minimal infrastructure to serve static experiment 
 ├── package.json
 ├── package-lock.json
 ├── server.js
-└── public/
+├── public/          ← browser experiments served by Express
+└── mhg-finetune/    ← Python ML pipeline (data, training, evaluation)
 ```
 
 ## Run

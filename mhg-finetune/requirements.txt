@@ -1,0 +1,38 @@
+# ── Data collection & preprocessing ──────────────────────────────────────────
+requests>=2.31.0
+tqdm>=4.66.0
+
+# ── Tokenisation (fast, no model weights needed for chunking) ─────────────────
+tiktoken>=0.6.0
+
+# ── Synthetic data generation ─────────────────────────────────────────────────
+openai>=1.30.0          # also works with Azure OpenAI endpoints
+anthropic>=0.25.0       # optional: use Claude instead of GPT-4o
+tenacity>=8.2.0         # retry logic for API calls
+
+# ── Data cleaning & deduplication ────────────────────────────────────────────
+datasketch>=1.6.4       # MinHash LSH
+sacrebleu>=2.3.1        # chrF for back-translation scoring
+
+# ── Training ──────────────────────────────────────────────────────────────────
+torch>=2.2.0
+transformers>=4.41.0
+datasets>=2.19.0
+peft>=0.11.0
+trl>=0.9.0
+bitsandbytes>=0.43.0    # 4-bit quantisation for QLoRA
+accelerate>=0.30.0
+scipy>=1.13.0
+
+# ── Evaluation ────────────────────────────────────────────────────────────────
+evaluate>=0.4.0
+nltk>=3.8.0
+
+# ── WebLLM conversion ─────────────────────────────────────────────────────────
+# mlc-llm is installed separately (requires CUDA/Metal GPU); see:
+#   https://llm.mlc.ai/docs/install/mlc_llm.html
+huggingface_hub>=0.23.0   # upload MLC weights to the Hub
+
+# ── Config & utilities ────────────────────────────────────────────────────────
+pyyaml>=6.0
+rich>=13.7.0
