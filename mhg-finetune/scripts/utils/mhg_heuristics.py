@@ -36,18 +36,27 @@ MHG_FUNCTION_WORDS: frozenset[str] = frozenset(
 
 # Modern German words that should not appear in a genuine MHG response.
 # Focused on high-frequency words with unambiguous orthographic changes.
+# Note: tokens that also appear in MHG_FUNCTION_WORDS (e.g. "noch", "ist")
+# are intentionally excluded here to avoid self-contradictory scoring.
 MODERN_GERMAN_MARKERS: frozenset[str] = frozenset(
     {
         "dass", "wenn", "weil", "aber", "jedoch", "obwohl", "trotzdem",
-        "heute", "jetzt", "schon", "noch", "sehr",
+        "heute", "jetzt", "schon", "sehr",
         "haben", "werden", "würde", "würden",
         "können", "müssen", "sollen", "wollen", "dürfen",
         "machen", "sagen", "gehen", "kommen", "sehen",
-        "sein", "ist", "sind", "war", "waren",   # NHG forms
+        "sein", "sind", "war", "waren",   # Modern German forms; "ist" excluded (shared with MHG)
         "nicht",  # MHG uses "niht"
         "das",    # MHG uses "daz"
         "für",    # MHG uses "für/vür" but NOT in function-word role
     }
+)
+
+# Sanity-check: the two sets must be disjoint so that shared tokens are never
+# counted as Modern German contamination in genuine MHG text.
+assert not (MHG_FUNCTION_WORDS & MODERN_GERMAN_MARKERS), (
+    "Overlap between MHG_FUNCTION_WORDS and MODERN_GERMAN_MARKERS: "
+    + str(MHG_FUNCTION_WORDS & MODERN_GERMAN_MARKERS)
 )
 
 # Characteristic MHG diacritic patterns (circumflex-marked long vowels).
