@@ -30,10 +30,11 @@ from tqdm import tqdm
 # ---------------------------------------------------------------------------
 
 class TextSource(NamedTuple):
-    slug: str           # filename stem used to save the file
-    url: str            # direct plain-text or HTML URL
-    format: str         # "gutenberg" | "wikisource_html" | "plain"
+    slug: str                           # filename stem used to save the file
+    url: str                            # direct plain-text or HTML URL
+    format: str                         # "gutenberg" | "wikisource_html" | "plain"
     description: str
+    fallback_urls: tuple[str, ...] = () # alternative URLs tried in order on 404
 
 
 SOURCES: list[TextSource] = [
@@ -52,22 +53,25 @@ SOURCES: list[TextSource] = [
     ),
     TextSource(
         slug="tristan_gottfried",
-        url="https://www.gutenberg.org/cache/epub/8970/pg8970.txt",
-        format="gutenberg",
-        description="Tristan – Gottfried von Strassburg (Gutenberg #8970)",
+        url="https://de.wikisource.org/wiki/Tristan_(Gottfried_von_Stra%C3%9Fburg)",
+        format="wikisource_html",
+        description="Tristan – Gottfried von Strassburg (Wikisource)",
+        fallback_urls=("https://de.wikisource.org/wiki/Tristan",),
     ),
     # Wikisource HTML pages (article body extraction)
     TextSource(
         slug="iwein_hartmann",
-        url="https://de.wikisource.org/wiki/Iwein",
+        url="https://de.wikisource.org/wiki/Iwein_(Hartmann_von_Aue)",
         format="wikisource_html",
         description="Iwein – Hartmann von Aue (Wikisource)",
+        fallback_urls=("https://de.wikisource.org/wiki/Iwein",),
     ),
     TextSource(
         slug="arme_heinrich",
-        url="https://de.wikisource.org/wiki/Der_arme_Heinrich",
+        url="https://de.wikisource.org/wiki/Der_arme_Heinrich_(Hartmann_von_Aue)",
         format="wikisource_html",
         description="Der arme Heinrich – Hartmann von Aue (Wikisource)",
+        fallback_urls=("https://de.wikisource.org/wiki/Der_arme_Heinrich",),
     ),
     TextSource(
         slug="walther_lieder",
@@ -77,9 +81,10 @@ SOURCES: list[TextSource] = [
     ),
     TextSource(
         slug="minnesang_fruehling",
-        url="https://de.wikisource.org/wiki/Minnesangs_Fr%C3%BChling",
+        url="https://de.wikisource.org/wiki/Des_Minnesangs_Fr%C3%BChling",
         format="wikisource_html",
         description="Minnesangs Frühling (Wikisource)",
+        fallback_urls=("https://de.wikisource.org/wiki/Minnesangs_Fr%C3%BChling",),
     ),
 ]
 
@@ -146,18 +151,29 @@ HEADERS = {
 
 
 def fetch_text(source: TextSource, session: requests.Session) -> str:
-    response = session.get(source.url, headers=HEADERS, timeout=30)
-    response.raise_for_status()
+    urls_to_try = [source.url, *source.fallback_urls]
+    last_error: Exception | None = None
+    for url in urls_to_try:
+        try:
+            response = session.get(url, headers=HEADERS, timeout=30)
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 404 and len(urls_to_try) > 1:
+                last_error = exc
+                continue
+            raise
 
-    if source.format == "gutenberg":
-        raw = response.text
-        return _strip_gutenberg(raw)
+        if source.format == "gutenberg":
+            return _strip_gutenberg(response.text)
 
-    if source.format == "wikisource_html":
-        return _extract_wikisource(response.text)
+        if source.format == "wikisource_html":
+            return _extract_wikisource(response.text)
 
-    # plain
-    return response.text.strip()
+        # plain
+        return response.text.strip()
+
+    assert last_error is not None
+    raise last_error
 
 
 # ---------------------------------------------------------------------------
