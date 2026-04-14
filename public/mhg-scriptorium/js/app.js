@@ -209,6 +209,9 @@ torchBtn.addEventListener('click', () => {
   history.length = 0;
   document.body.classList.add('burning');
   document.getElementById('chat').innerHTML = '';
+  inputEl.value = '';
+  resetSeal();
+  sealTarget.classList.remove('over', 'ready');
   setTimeout(() => document.body.classList.remove('burning'), 550);
   setStatus('The parchment is burned clean.');
 });
