@@ -14,7 +14,6 @@ tenacity>=8.2.0         # retry logic for API calls
 
 # ── Data cleaning & deduplication ────────────────────────────────────────────
 datasketch>=1.6.4       # MinHash LSH
-langdetect>=1.0.9
 sacrebleu>=2.3.1        # chrF for back-translation scoring
 
 # ── Training ──────────────────────────────────────────────────────────────────
