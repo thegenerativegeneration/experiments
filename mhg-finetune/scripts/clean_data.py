@@ -58,6 +58,8 @@ def _get_assistant_text(record: dict[str, Any]) -> str | None:
 
 
 def _validate_schema(record: dict[str, Any]) -> bool:
+    if not isinstance(record.get("system"), str) or not record["system"].strip():
+        return False
     if "messages" not in record:
         return False
     messages = record["messages"]
