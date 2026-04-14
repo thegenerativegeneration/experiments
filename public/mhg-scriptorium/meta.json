@@ -1,0 +1,7 @@
+{
+  "title": "The Scriptorium",
+  "year": 2026,
+  "description": "A medieval Middle High German chatbot ritual: draft ink, melt wax, stamp a seal, and consult an in-browser oracle powered by WebLLM.",
+  "importance": 2,
+  "img": "/assets/experiments/mhg-scriptorium/preview.png"
+}

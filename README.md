@@ -1,6 +1,7 @@
 # Repository Overview
 
 - `morse-chatbot` (served from `public/morse-chatbot`)
+- `mhg-scriptorium` (served from `public/mhg-scriptorium`)
 - `mhg-finetune` — fine-tuning pipeline for a Middle High German conversational LLM
 
 ## Purpose
@@ -32,10 +33,10 @@ npm start
 Open:
 
 - `http://localhost:3000/morse-chatbot/`
+- `http://localhost:3000/mhg-scriptorium/`
 
 ## Development
 
 ```bash
 npm run dev
 ```
-
