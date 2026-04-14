@@ -39,18 +39,21 @@ class TextSource(NamedTuple):
 
 
 SOURCES: list[TextSource] = [
-    # Project Gutenberg plain-text files (UTF-8)
+    # Wikisource HTML pages for the major MHG epics
     TextSource(
         slug="nibelungenlied",
-        url="https://www.gutenberg.org/cache/epub/7420/pg7420.txt",
-        format="gutenberg",
-        description="Das Nibelungenlied (MHG original, Gutenberg #7420)",
+        url="https://de.wikisource.org/wiki/Das_Nibelungenlied",
+        format="wikisource_html",
+        description="Das Nibelungenlied (MHG original, Wikisource)",
+        search_term="Das Nibelungenlied",
     ),
     TextSource(
         slug="parzival_wolfram",
-        url="https://www.gutenberg.org/cache/epub/19393/pg19393.txt",
-        format="gutenberg",
-        description="Parzival – Wolfram von Eschenbach (Gutenberg #19393)",
+        url="https://de.wikisource.org/wiki/Parzival",
+        format="wikisource_html",
+        description="Parzival – Wolfram von Eschenbach (Wikisource)",
+        fallback_urls=("https://de.wikisource.org/wiki/Parzival_(Wolfram_von_Eschenbach)",),
+        search_term="Parzival Wolfram von Eschenbach",
     ),
     TextSource(
         slug="tristan_gottfried",
@@ -143,10 +146,12 @@ def _extract_gutenberg_html(html: str) -> str:
 def _extract_wikisource(html: str) -> str:
     """Extract article body text from a Wikisource HTML page."""
     soup = BeautifulSoup(html, "lxml")
-    # Remove navigation, TOC, edit links, references
+    # Remove navigation, TOC, edit links, images, references, and other non-text elements
     for tag in soup.select(
         "sup, .mw-editsection, #toc, .navbox, .sister-project, "
-        ".mw-references-wrap, table.wikitable"
+        ".mw-references-wrap, table.wikitable, "
+        ".thumb, figure, figcaption, .thumbcaption, .gallery, "
+        ".mw-file-description-page, .floatnone, .floatleft, .floatright"
     ):
         tag.decompose()
     content_div = (
