@@ -132,6 +132,10 @@ def main(argv: list[str] | None = None) -> None:
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
+    # Enforce the configured max sequence length at the tokenizer level so that
+    # TRL applies truncation correctly regardless of version (max_seq_length was
+    # removed from SFTConfig in TRL ≥ 0.16.0).
+    tokenizer.model_max_length = cfg.get("max_seq_length", 2048)
 
     # ── Load dataset ──────────────────────────────────────────────────────────
     print(f"Loading dataset: {train_file} / {eval_file}")
@@ -189,9 +193,10 @@ def main(argv: list[str] | None = None) -> None:
         report_to="none",
         push_to_hub=push_to_hub,
         hub_model_id=hub_model_id or None,
-        # SFT-specific fields (moved out of SFTTrainer in TRL ≥ 0.9)
+        # SFT-specific fields (moved out of SFTTrainer in TRL ≥ 0.9).
+        # Note: max_seq_length was removed from SFTConfig in TRL ≥ 0.16.0;
+        # truncation is enforced via tokenizer.model_max_length above.
         dataset_text_field="text",
-        max_seq_length=cfg.get("max_seq_length", 2048),
         packing=cfg.get("packing", True),
     )
 
