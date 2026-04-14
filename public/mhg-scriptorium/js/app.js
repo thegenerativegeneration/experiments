@@ -27,9 +27,12 @@ let isBusy = false;
 let personality = 'knight';
 let melancholy = 10;
 let idleTimer = null;
+let waxCoolTimer = null;
+let waxSealId = 0;
 const history = [];
 
 const GHOST_KEY = 'mhg-scriptorium-ghost-text';
+const WAX_COOL_MS = 12000;
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -67,9 +70,19 @@ function applyLunarInfluence() {
     'Waning Crescent': { glow: '#9f8759', shift: '1px' },
   };
   const pick = influences[phase];
+  const phaseMhg = {
+    'New Moon': 'niuwermâne',
+    'Waxing Crescent': 'wahsender sichelmâne',
+    'First Quarter': 'daz êrste viertel',
+    'Waxing Gibbous': 'wahsender volmâne',
+    'Full Moon': 'volmâne',
+    'Waning Gibbous': 'abnemender volmâne',
+    'Last Quarter': 'daz leste viertel',
+    'Waning Crescent': 'abnemender sichelmâne',
+  };
   root.style.setProperty('--lunar-glow', pick.glow);
   root.style.setProperty('--lunar-shift', pick.shift);
-  starsNote.textContent = `Alignment of the spheres: ${phase}`;
+  starsNote.textContent = `Stant der sphêren: ${phaseMhg[phase]}`;
 }
 
 function renderGhostText() {
@@ -127,33 +140,47 @@ function updateMelancholy(input) {
 
 function resetSeal() {
   waxArmed = false;
+  waxSealId += 1;
+  clearTimeout(waxCoolTimer);
+  waxCoolTimer = null;
   waxBlob.classList.remove('visible');
   sealTarget.classList.remove('ready');
-  setStatus('Draft thy query and seal it.');
+  setStatus('Schrîp dîne vrâge unt sigel si.');
 }
 
 function armSeal() {
   if (isBusy) return;
   const text = inputEl.value.trim();
   if (!text) {
-    setStatus('No ink upon the desk.');
+    setStatus('Kein tinte lit ûf dem pulte.');
     return;
   }
+  clearTimeout(waxCoolTimer);
+  const thisSealId = ++waxSealId;
   waxArmed = true;
   waxBlob.classList.add('visible');
   sealTarget.classList.add('ready');
-  setStatus('Wax is laid. Stamp the seal.');
+  setStatus('Daz wachs ist geleit. Sigel nû.');
+  waxCoolTimer = setTimeout(() => {
+    if (thisSealId !== waxSealId || !waxArmed || isBusy) return;
+    waxArmed = false;
+    waxBlob.classList.remove('visible');
+    sealTarget.classList.remove('ready');
+    setStatus('Daz wachs ist erkaltet. Schmilze ez aber.');
+  }, WAX_COOL_MS);
 }
 
-async function sendStampedMessage() {
-  if (!waxArmed || isBusy) return;
+async function sendStampedMessage(force = false) {
+  if ((!waxArmed && !force) || isBusy) return;
   const userText = inputEl.value.trim();
   if (!userText) return;
 
+  clearTimeout(waxCoolTimer);
+  waxCoolTimer = null;
   isBusy = true;
-  setStatus('The oracle considers...');
+  setStatus('Daz orakel gedenket...');
   appendMessage('user', userText);
-  addChronicleEntry(`You: ${userText.slice(0, 80)}`);
+  addChronicleEntry(`Ir: ${userText.slice(0, 80)}`);
   history.push({ role: 'user', content: userText });
   updateMelancholy(userText);
   inputEl.value = '';
@@ -161,18 +188,24 @@ async function sendStampedMessage() {
 
   const thinking = appendThinking();
   try {
-    const reply = await chat(history, personality);
+    let reply = await chat(history, personality);
+    if (!reply || !reply.trim()) {
+      reply = await chat(history, personality);
+    }
+    if (!reply || !reply.trim()) {
+      reply = 'Ein stœre geschach bî mîner rede. Sprechet aber, ich bite iuch.';
+    }
     thinking.remove();
     history.push({ role: 'assistant', content: reply });
     await appendAssistantTyped(reply);
-    addChronicleEntry(`Oracle: ${reply.slice(0, 80)}`);
+    addChronicleEntry(`Orakel: ${reply.slice(0, 80)}`);
     updateMelancholy(reply);
-    setStatus('Sælde und heil.');
+    setStatus('Sælde unt heil.');
   } catch (error) {
     thinking.remove();
     appendMessage('assistant', `Ein trüebe stœre: ${error.message}`);
     history.pop();
-    setStatus('Ink blot in the margins.');
+    setStatus('Ein tintenvlëc in den randen.');
   } finally {
     isBusy = false;
   }
@@ -199,10 +232,12 @@ sealTarget.addEventListener('drop', async (event) => {
   sealTarget.classList.remove('over');
   const token = event.dataTransfer.getData('text/plain');
   if (token !== 'signet') return;
-  await sendStampedMessage();
+  await sendStampedMessage(waxArmed);
 });
 
-ringEl.addEventListener('click', sendStampedMessage);
+ringEl.addEventListener('click', async () => {
+  await sendStampedMessage(waxArmed);
+});
 
 torchBtn.addEventListener('click', () => {
   archiveGhostText();
@@ -211,9 +246,9 @@ torchBtn.addEventListener('click', () => {
   document.getElementById('chat').innerHTML = '';
   inputEl.value = '';
   resetSeal();
-  sealTarget.classList.remove('over', 'ready');
+  sealTarget.classList.remove('over');
   setTimeout(() => document.body.classList.remove('burning'), 550);
-  setStatus('The parchment is burned clean.');
+  setStatus('Daz pergamen ist verbrant unde rëin.');
 });
 
 chronicleBtn.addEventListener('click', () => {
@@ -229,7 +264,7 @@ document.querySelectorAll('.persona').forEach((btn) => {
     document.querySelectorAll('.persona').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
     personality = btn.dataset.persona;
-    setStatus(`Triptych: ${btn.textContent}`);
+    setStatus(`Triptichon: ${btn.textContent}`);
   });
 });
 
@@ -246,7 +281,7 @@ desk.addEventListener('mousemove', resetIdleInkDrop);
 applyLunarInfluence();
 renderGhostText();
 applyHumors();
-setStatus('Preparing the oracle...');
+setStatus('Daz orakel wirt bereit...');
 resetIdleInkDrop();
 
 inputEl.disabled = true;
@@ -264,6 +299,6 @@ initLLM((report) => {
   setStatus('Hie bevîndet iuch der geist in der dinstman des buoches.');
   appendMessage('assistant', 'Sælde unde heil, wanderære. Waz ist dîn ger?');
 }).catch((error) => {
-  loadingText.textContent = `Error: ${error.message}`;
-  setStatus('The oracle remains veiled.');
+  loadingText.textContent = `Fehler: ${error.message}`;
+  setStatus('Daz orakel belîbet verhüllet.');
 });

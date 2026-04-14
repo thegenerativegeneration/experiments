@@ -10,7 +10,7 @@ function createMessage(role, text) {
 
   const label = document.createElement('div');
   label.className = 'msg-label';
-  label.textContent = role === 'user' ? 'Petitioner' : 'Oracle';
+  label.textContent = role === 'user' ? 'Bitter' : 'Orakel';
 
   const textEl = document.createElement('div');
   textEl.className = 'msg-text';
@@ -37,7 +37,7 @@ export async function appendAssistantTyped(text, delayMs = 17) {
 }
 
 export function appendThinking() {
-  const { wrap } = createMessage('assistant', 'The quill scratches in silence...');
+  const { wrap } = createMessage('assistant', 'Diu feder kratzt in swîgen...');
   wrap.classList.add('thinking');
   return {
     remove() { wrap.remove(); },
