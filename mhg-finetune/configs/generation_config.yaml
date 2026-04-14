@@ -1,0 +1,61 @@
+# Synthetic-data generation settings
+# ─────────────────────────────────────────────────────────────────────────────
+
+# LLM backend to use for generation.
+# Supported values: "openai" | "anthropic"
+provider: openai
+
+# Model name passed to the API.
+model: gpt-4o
+
+# Number of chat examples to generate per text chunk.
+examples_per_chunk: 4
+
+# Maximum tokens the generator LLM may produce per call.
+max_tokens: 1024
+
+# Sampling temperature (lower = more faithful, higher = more varied).
+temperature: 0.8
+
+# Paths (relative to the mhg-finetune root).
+chunks_file: data/chunks.jsonl
+output_file: data/synthetic_raw.jsonl
+
+# Prompt scenario weights.
+# The generator samples one scenario per example according to these weights.
+scenario_weights:
+  mhg_conversation: 0.30   # MHG question → MHG answer
+  translation_to_modern: 0.25  # MHG excerpt → Modern German
+  explanation: 0.20         # MHG excerpt → English explanation + grammar notes
+  grammar_qa: 0.15          # Grammar question → MHG-grounded answer
+  paraphrase: 0.10          # MHG passage → MHG paraphrase (different style)
+
+# System prompts per scenario.
+system_prompts:
+  mhg_conversation: >
+    Du bist ein Muttersprachler des Mittelhochdeutschen (ca. 1150–1350).
+    Antworte ausschließlich auf Mittelhochdeutsch. Verwende keine neuhochdeutschen
+    Wörter. Halte Dich an die Grammatik und den Wortschatz des klassischen MHD.
+  translation_to_modern: >
+    You are an expert in Middle High German (Mittelhochdeutsch, c. 1150–1350).
+    Translate the provided MHG passage into modern standard German (Hochdeutsch).
+    Preserve the meaning faithfully; do not paraphrase.
+  explanation: >
+    You are a scholar specialising in Middle High German literature and linguistics.
+    Explain the provided MHG passage in English. Cover vocabulary, grammar
+    (case, verb forms, syntax), and literary context where relevant.
+  grammar_qa: >
+    You are a Middle High German grammar tutor. Answer the student's question
+    using the provided MHG text as evidence. Cite specific words or forms
+    from the passage to illustrate your answer.
+  paraphrase: >
+    Du bist Dichter des Mittelalters und kennst das Mittelhochdeutsche gut.
+    Formuliere den folgenden mittelhochdeutschen Abschnitt in einem anderen Stil
+    um — bewahre die Bedeutung, ändere aber Satzbau, Wortstellung oder Reimschema.
+
+# Back-translation validation
+back_translation:
+  enabled: true
+  # Minimum chrF score (0–100) between back-translated MHG and original text.
+  # Examples below this threshold are flagged for removal by clean_data.py.
+  min_chrf: 20.0
