@@ -286,7 +286,8 @@ def main(argv: list[str] | None = None) -> None:
                 if line:
                     chunks.append(json.loads(line))
 
-        import random; random.seed(42)
+        import random
+        random.seed(42)
         sample = random.sample(chunks, min(args.perplexity_samples, len(chunks)))
         texts = [c["text"] for c in sample]
         ppl = compute_perplexity(model, tokenizer, texts)
@@ -309,7 +310,8 @@ def main(argv: list[str] | None = None) -> None:
 
     # ── Translation ───────────────────────────────────────────────────────────
     if eval_records:
-        import random; random.seed(42)
+        import random
+        random.seed(42)
         sample = random.sample(eval_records, min(args.translation_samples, len(eval_records)))
         console.print("[bold]Computing translation metrics…[/bold]")
         t_metrics = compute_translation_metrics(model, tokenizer, sample)
@@ -323,7 +325,8 @@ def main(argv: list[str] | None = None) -> None:
 
     # ── MHG pass-rate ─────────────────────────────────────────────────────────
     if eval_records:
-        import random; random.seed(42)
+        import random
+        random.seed(42)
         sample = random.sample(eval_records, min(args.mhg_samples, len(eval_records)))
         console.print("[bold]Computing MHG heuristic pass-rate…[/bold]")
         m_metrics = compute_mhg_pass_rate(model, tokenizer, sample)

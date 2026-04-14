@@ -22,7 +22,7 @@ from typing import NamedTuple
 # High-frequency MHG function words that are absent in Modern German.
 MHG_FUNCTION_WORDS: frozenset[str] = frozenset(
     {
-        "daz", "dâ", "diu", "des", "dem", "den", "der", "diu",
+        "daz", "dâ", "diu", "des", "dem", "den", "der",
         "ich", "du", "er", "sî", "wir", "ir", "sie",
         "ze", "von", "an", "in", "ûf", "mit", "nâch", "durch",
         "ouch", "hât", "hâst", "ist", "sint", "wart", "wâren",
@@ -40,7 +40,7 @@ MODERN_GERMAN_MARKERS: frozenset[str] = frozenset(
     {
         "dass", "wenn", "weil", "aber", "jedoch", "obwohl", "trotzdem",
         "heute", "jetzt", "schon", "noch", "sehr",
-        "haben", "haben", "werden", "würde", "würden",
+        "haben", "werden", "würde", "würden",
         "können", "müssen", "sollen", "wollen", "dürfen",
         "machen", "sagen", "gehen", "kommen", "sehen",
         "sein", "ist", "sind", "war", "waren",   # NHG forms

@@ -137,11 +137,6 @@ def main(argv: list[str] | None = None) -> None:
         data_files={"train": train_file, "eval": eval_file},
     )
 
-    def _format(batch):
-        return {"text": [format_chat(r, tokenizer) for r in batch["messages"]
-                         ]}
-
-    # We need full records so use map on the raw dataset
     def _format_record(record):
         return {"text": format_chat(record, tokenizer)}
 
