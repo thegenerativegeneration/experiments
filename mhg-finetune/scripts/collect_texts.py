@@ -32,9 +32,10 @@ from tqdm import tqdm
 class TextSource(NamedTuple):
     slug: str                           # filename stem used to save the file
     url: str                            # direct plain-text or HTML URL
-    format: str                         # "gutenberg" | "wikisource_html" | "plain"
+    format: str                         # "gutenberg" | "gutenberg_html" | "wikisource_html" | "plain"
     description: str
     fallback_urls: tuple[str, ...] = () # alternative URLs tried in order on 404
+    search_term: str = ""               # if set, search de.wikisource.org API as last resort
 
 
 SOURCES: list[TextSource] = [
@@ -53,10 +54,13 @@ SOURCES: list[TextSource] = [
     ),
     TextSource(
         slug="tristan_gottfried",
-        url="https://de.wikisource.org/wiki/Tristan_(Gottfried_von_Stra%C3%9Fburg)",
-        format="wikisource_html",
-        description="Tristan – Gottfried von Strassburg (Wikisource)",
-        fallback_urls=("https://de.wikisource.org/wiki/Tristan",),
+        url="https://www.gutenberg.org/files/8970/8970-h/8970-h.htm",
+        format="gutenberg_html",
+        description="Tristan – Gottfried von Strassburg (Gutenberg #8970)",
+        fallback_urls=(
+            "https://www.gutenberg.org/files/8970/8970-0.txt",
+            "https://www.gutenberg.org/files/8970/8970.txt",
+        ),
     ),
     # Wikisource HTML pages (article body extraction)
     TextSource(
@@ -65,6 +69,7 @@ SOURCES: list[TextSource] = [
         format="wikisource_html",
         description="Iwein – Hartmann von Aue (Wikisource)",
         fallback_urls=("https://de.wikisource.org/wiki/Iwein",),
+        search_term="Iwein Hartmann von Aue",
     ),
     TextSource(
         slug="arme_heinrich",
@@ -72,6 +77,7 @@ SOURCES: list[TextSource] = [
         format="wikisource_html",
         description="Der arme Heinrich – Hartmann von Aue (Wikisource)",
         fallback_urls=("https://de.wikisource.org/wiki/Der_arme_Heinrich",),
+        search_term="Der arme Heinrich Hartmann von Aue",
     ),
     TextSource(
         slug="walther_lieder",
@@ -85,6 +91,7 @@ SOURCES: list[TextSource] = [
         format="wikisource_html",
         description="Minnesangs Frühling (Wikisource)",
         fallback_urls=("https://de.wikisource.org/wiki/Minnesangs_Fr%C3%BChling",),
+        search_term="Des Minnesangs Frühling",
     ),
 ]
 
@@ -113,6 +120,22 @@ def _strip_gutenberg(raw: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Gutenberg HTML helper
+# ---------------------------------------------------------------------------
+
+
+def _extract_gutenberg_html(html: str) -> str:
+    """Extract plain text from a Gutenberg HTML file, then strip boilerplate."""
+    soup = BeautifulSoup(html, "lxml")
+    for tag in soup.select("script, style"):
+        tag.decompose()
+    body = soup.find("body") or soup
+    lines = [line.strip() for line in body.get_text(separator="\n").splitlines()]
+    lines = [l for l in lines if len(l) > 2]
+    return _strip_gutenberg("\n".join(lines))
+
+
+# ---------------------------------------------------------------------------
 # Wikisource helpers
 # ---------------------------------------------------------------------------
 
@@ -138,6 +161,50 @@ def _extract_wikisource(html: str) -> str:
     return "\n".join(lines)
 
 
+_WIKISOURCE_MIN_CHARS = 1_000  # minimum content length to accept a search result
+
+
+def _wikisource_fetch_by_search(
+    query: str, session: requests.Session
+) -> str:
+    """Search de.wikisource.org via its API and return text of the best match.
+
+    Tries up to 5 search results in order, accepting the first one with
+    substantial content (>= ``_WIKISOURCE_MIN_CHARS`` characters).
+    """
+    resp = session.get(
+        "https://de.wikisource.org/w/api.php",
+        headers=HEADERS,
+        timeout=30,
+        params={
+            "action": "query",
+            "list": "search",
+            "srsearch": query,
+            "srnamespace": 0,
+            "srlimit": 5,
+            "format": "json",
+        },
+    )
+    resp.raise_for_status()
+    results = resp.json().get("query", {}).get("search", [])
+    if not results:
+        raise ValueError(f"Wikisource API: no results for {query!r}")
+
+    for result in results:
+        title = result["title"]
+        url = "https://de.wikisource.org/wiki/" + title.replace(" ", "_")
+        try:
+            page_resp = session.get(url, headers=HEADERS, timeout=30)
+            page_resp.raise_for_status()
+            text = _extract_wikisource(page_resp.text)
+            if len(text) >= _WIKISOURCE_MIN_CHARS:
+                return text
+        except requests.RequestException:
+            continue
+
+    raise ValueError(f"Wikisource API: no usable page found for {query!r}")
+
+
 # ---------------------------------------------------------------------------
 # Fetching
 # ---------------------------------------------------------------------------
@@ -158,7 +225,7 @@ def fetch_text(source: TextSource, session: requests.Session) -> str:
             response = session.get(url, headers=HEADERS, timeout=30)
             response.raise_for_status()
         except requests.HTTPError as exc:
-            if exc.response is not None and exc.response.status_code == 404 and len(urls_to_try) > 1:
+            if exc.response is not None and exc.response.status_code == 404:
                 last_error = exc
                 continue
             raise
@@ -166,11 +233,18 @@ def fetch_text(source: TextSource, session: requests.Session) -> str:
         if source.format == "gutenberg":
             return _strip_gutenberg(response.text)
 
+        if source.format == "gutenberg_html":
+            return _extract_gutenberg_html(response.text)
+
         if source.format == "wikisource_html":
             return _extract_wikisource(response.text)
 
         # plain
         return response.text.strip()
+
+    # All hard-coded URLs failed; try Wikisource API search as last resort
+    if source.format == "wikisource_html" and source.search_term:
+        return _wikisource_fetch_by_search(source.search_term, session)
 
     assert last_error is not None
     raise last_error
