@@ -154,7 +154,7 @@ def main(argv: list[str] | None = None) -> None:
         quantization_config=bnb_config,
         device_map="auto",
         trust_remote_code=True,
-        torch_dtype=torch.bfloat16 if cfg.get("bf16") else torch.float16,
+        dtype=torch.bfloat16 if cfg.get("bf16") else torch.float16,
     )
     model.config.use_cache = False
 
@@ -202,6 +202,7 @@ def main(argv: list[str] | None = None) -> None:
         train_dataset=train_ds,
         eval_dataset=eval_ds,
         peft_config=lora_config,
+        processing_class=tokenizer,
     )
 
     # ── Train ─────────────────────────────────────────────────────────────────
