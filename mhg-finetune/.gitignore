@@ -1,0 +1,15 @@
+# Downloaded source texts and generated data (can be reproduced by running the scripts)
+data/raw/
+data/chunks.jsonl
+data/synthetic_raw.jsonl
+data/train.jsonl
+data/eval.jsonl
+
+# Model checkpoints and evaluation results
+output/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
