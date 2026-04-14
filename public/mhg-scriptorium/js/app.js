@@ -135,6 +135,7 @@ function updateMelancholy(input) {
   if (lowWords.some((w) => t.includes(w))) melancholy += 14;
   else if (highWords.some((w) => t.includes(w))) melancholy -= 12;
   else melancholy += 2;
+  melancholy = Math.max(0, Math.min(100, melancholy));
   applyHumors();
 }
 
@@ -178,6 +179,7 @@ async function sendStampedMessage(force = false) {
   clearTimeout(waxCoolTimer);
   waxCoolTimer = null;
   isBusy = true;
+  torchBtn.disabled = true;
   setStatus('Daz orakel gedenket...');
   appendMessage('user', userText);
   addChronicleEntry(`Ir: ${userText.slice(0, 80)}`);
@@ -208,6 +210,7 @@ async function sendStampedMessage(force = false) {
     setStatus('Ein tintenvlëc in den randen.');
   } finally {
     isBusy = false;
+    torchBtn.disabled = false;
   }
 }
 
@@ -240,6 +243,10 @@ ringEl.addEventListener('click', async () => {
 });
 
 torchBtn.addEventListener('click', () => {
+  if (isBusy) {
+    setStatus('Warte, unz daz orakel geantwürte.');
+    return;
+  }
   archiveGhostText();
   history.length = 0;
   document.body.classList.add('burning');
