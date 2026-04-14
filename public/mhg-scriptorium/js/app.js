@@ -36,10 +36,10 @@ function setStatus(text) {
 }
 
 function getLunarPhase(date = new Date()) {
-  const lp = 2551443;
+  const lunarCycleSeconds = 2551443;
   const nowSec = date.getTime() / 1000;
   const newMoon = new Date('1970-01-07T20:35:00Z').getTime() / 1000;
-  const phase = ((nowSec - newMoon) % lp) / lp;
+  const phase = ((nowSec - newMoon) % lunarCycleSeconds) / lunarCycleSeconds;
   const index = Math.floor(phase * 8) % 8;
   return [
     'New Moon',
