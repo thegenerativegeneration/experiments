@@ -32,13 +32,16 @@ from pathlib import Path
 import torch
 import yaml
 from datasets import load_dataset
-from peft import LoraConfig, TaskType, get_peft_model
+from peft import LoraConfig, TaskType
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
 )
 from trl import SFTConfig, SFTTrainer
+
+# Project root: mhg-finetune/ (two levels up from this script)
+_ROOT = Path(__file__).resolve().parent.parent
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -99,7 +102,7 @@ def format_chat(record: dict, tokenizer) -> str:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--config", default="configs/training_config.yaml",
+        "--config", default=str(_ROOT / "configs/training_config.yaml"),
         help="Path to training_config.yaml",
     )
     parser.add_argument("--model",      help="Override model_name_or_path")
@@ -113,11 +116,12 @@ def main(argv: list[str] | None = None) -> None:
 
     cfg = load_config(args.config)
 
-    # CLI overrides
+    # CLI overrides; resolve relative paths against the project root
     model_id    = args.model      or cfg["model_name_or_path"]
-    train_file  = args.train_file or cfg.get("train_file", "data/train.jsonl")
-    eval_file   = args.eval_file  or cfg.get("eval_file",  "data/eval.jsonl")
-    output_dir  = args.output_dir or cfg.get("output_dir", "output/mhg-model")
+    _resolve    = lambda p: str(_ROOT / p) if not Path(p).is_absolute() else p
+    train_file  = _resolve(args.train_file or cfg.get("train_file", "data/train.jsonl"))
+    eval_file   = _resolve(args.eval_file  or cfg.get("eval_file",  "data/eval.jsonl"))
+    output_dir  = _resolve(args.output_dir or cfg.get("output_dir", "output/mhg-model"))
     num_epochs  = args.epochs     or cfg.get("num_train_epochs", 3)
     push_to_hub = args.push_to_hub or cfg.get("push_to_hub", False)
     hub_model_id = args.hub_model_id or cfg.get("hub_model_id", "")
