@@ -32,14 +32,15 @@ from tqdm import tqdm
 class TextSource(NamedTuple):
     slug: str                           # filename stem used to save the file
     url: str                            # direct plain-text or HTML URL
-    format: str                         # "gutenberg" | "gutenberg_html" | "wikisource_html" | "plain"
+    format: str                         # "gutenberg" | "wikisource_html" | "plain"
     description: str
     fallback_urls: tuple[str, ...] = () # alternative URLs tried in order on 404
     search_term: str = ""               # if set, search de.wikisource.org API as last resort
 
 
 SOURCES: list[TextSource] = [
-    # Wikisource HTML pages for the major MHG epics
+    # All sourced from de.wikisource.org; search_term ensures the API can find
+    # the correct page if the primary URL returns 404 or redirects elsewhere.
     TextSource(
         slug="nibelungenlied",
         url="https://de.wikisource.org/wiki/Das_Nibelungenlied",
@@ -49,29 +50,24 @@ SOURCES: list[TextSource] = [
     ),
     TextSource(
         slug="parzival_wolfram",
-        url="https://de.wikisource.org/wiki/Parzival",
+        url="https://de.wikisource.org/wiki/Parzival_(Wolfram_von_Eschenbach)",
         format="wikisource_html",
         description="Parzival – Wolfram von Eschenbach (Wikisource)",
-        fallback_urls=("https://de.wikisource.org/wiki/Parzival_(Wolfram_von_Eschenbach)",),
+        fallback_urls=("https://de.wikisource.org/wiki/Parzival",),
         search_term="Parzival Wolfram von Eschenbach",
     ),
     TextSource(
         slug="tristan_gottfried",
-        url="https://www.gutenberg.org/files/8970/8970-h/8970-h.htm",
-        format="gutenberg_html",
-        description="Tristan – Gottfried von Strassburg (Gutenberg #8970)",
-        fallback_urls=(
-            "https://www.gutenberg.org/files/8970/8970-0.txt",
-            "https://www.gutenberg.org/files/8970/8970.txt",
-        ),
+        url="https://de.wikisource.org/wiki/Tristan_(Gottfried_von_Stra%C3%9Fburg)",
+        format="wikisource_html",
+        description="Tristan – Gottfried von Strassburg (Wikisource)",
+        search_term="Tristan Gottfried von Strassburg",
     ),
-    # Wikisource HTML pages (article body extraction)
     TextSource(
         slug="iwein_hartmann",
         url="https://de.wikisource.org/wiki/Iwein_(Hartmann_von_Aue)",
         format="wikisource_html",
         description="Iwein – Hartmann von Aue (Wikisource)",
-        fallback_urls=("https://de.wikisource.org/wiki/Iwein",),
         search_term="Iwein Hartmann von Aue",
     ),
     TextSource(
@@ -79,7 +75,6 @@ SOURCES: list[TextSource] = [
         url="https://de.wikisource.org/wiki/Der_arme_Heinrich_(Hartmann_von_Aue)",
         format="wikisource_html",
         description="Der arme Heinrich – Hartmann von Aue (Wikisource)",
-        fallback_urls=("https://de.wikisource.org/wiki/Der_arme_Heinrich",),
         search_term="Der arme Heinrich Hartmann von Aue",
     ),
     TextSource(
@@ -87,13 +82,13 @@ SOURCES: list[TextSource] = [
         url="https://de.wikisource.org/wiki/Walther_von_der_Vogelweide",
         format="wikisource_html",
         description="Walther von der Vogelweide – Lieder (Wikisource)",
+        search_term="Walther von der Vogelweide",
     ),
     TextSource(
         slug="minnesang_fruehling",
         url="https://de.wikisource.org/wiki/Des_Minnesangs_Fr%C3%BChling",
         format="wikisource_html",
         description="Minnesangs Frühling (Wikisource)",
-        fallback_urls=("https://de.wikisource.org/wiki/Minnesangs_Fr%C3%BChling",),
         search_term="Des Minnesangs Frühling",
     ),
 ]
@@ -120,22 +115,6 @@ def _strip_gutenberg(raw: str) -> str:
     if end_match:
         raw = raw[: end_match.start()]
     return raw.strip()
-
-
-# ---------------------------------------------------------------------------
-# Gutenberg HTML helper
-# ---------------------------------------------------------------------------
-
-
-def _extract_gutenberg_html(html: str) -> str:
-    """Extract plain text from a Gutenberg HTML file, then strip boilerplate."""
-    soup = BeautifulSoup(html, "lxml")
-    for tag in soup.select("script, style"):
-        tag.decompose()
-    body = soup.find("body") or soup
-    lines = [line.strip() for line in body.get_text(separator="\n").splitlines()]
-    lines = [l for l in lines if len(l) > 2]
-    return _strip_gutenberg("\n".join(lines))
 
 
 # ---------------------------------------------------------------------------
@@ -211,6 +190,40 @@ def _wikisource_fetch_by_search(
 
 
 # ---------------------------------------------------------------------------
+# Content validation
+# ---------------------------------------------------------------------------
+
+# Unicode ranges for CJK (Chinese / Japanese / Korean) characters
+_CJK_RE = re.compile(
+    r"[\u2E80-\u2EFF\u2F00-\u2FDF\u3000-\u303F\u3040-\u309F\u30A0-\u30FF"
+    r"\u3100-\u312F\u3200-\u32FF\u3300-\u33FF\u3400-\u4DBF\u4E00-\u9FFF"
+    r"\uF900-\uFAFF\uFE30-\uFE4F\u20000-\u2A6DF\u2A700-\u2B73F]"
+)
+
+_MIN_CONTENT_CHARS = 5_000   # shortest acceptable text
+_MAX_CJK_RATIO = 0.05        # ≤5 % CJK characters allowed
+
+
+def _validate_content(text: str, source_slug: str) -> None:
+    """Raise ``ValueError`` if *text* looks like the wrong document.
+
+    Checks:
+    * Minimum length — catches empty or near-empty pages.
+    * CJK character ratio — rejects accidentally downloaded Chinese/Japanese texts.
+    """
+    if len(text) < _MIN_CONTENT_CHARS:
+        raise ValueError(
+            f"{source_slug}: content too short ({len(text):,} chars < {_MIN_CONTENT_CHARS:,})"
+        )
+    cjk_count = len(_CJK_RE.findall(text))
+    ratio = cjk_count / max(len(text), 1)
+    if ratio > _MAX_CJK_RATIO:
+        raise ValueError(
+            f"{source_slug}: {ratio:.1%} CJK characters — this is not a German text"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Fetching
 # ---------------------------------------------------------------------------
 
@@ -236,23 +249,30 @@ def fetch_text(source: TextSource, session: requests.Session) -> str:
             raise
 
         if source.format == "gutenberg":
-            return _strip_gutenberg(response.text)
+            text = _strip_gutenberg(response.text)
+        elif source.format == "wikisource_html":
+            text = _extract_wikisource(response.text)
+        else:
+            text = response.text.strip()
 
-        if source.format == "gutenberg_html":
-            return _extract_gutenberg_html(response.text)
+        try:
+            _validate_content(text, source.slug)
+        except ValueError as exc:
+            tqdm.write(f"  warn  {exc} — trying next source")
+            last_error = exc
+            continue
 
-        if source.format == "wikisource_html":
-            return _extract_wikisource(response.text)
+        return text
 
-        # plain
-        return response.text.strip()
-
-    # All hard-coded URLs failed; try Wikisource API search as last resort
+    # All hard-coded URLs failed or produced invalid content; try Wikisource API search
     if source.format == "wikisource_html" and source.search_term:
-        return _wikisource_fetch_by_search(source.search_term, session)
+        text = _wikisource_fetch_by_search(source.search_term, session)
+        _validate_content(text, source.slug)
+        return text
 
-    assert last_error is not None
-    raise last_error
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError(f"{source.slug}: no URL produced valid content")
 
 
 # ---------------------------------------------------------------------------
