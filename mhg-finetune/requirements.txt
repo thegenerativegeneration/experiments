@@ -32,6 +32,11 @@ evaluate>=0.4.0
 sacrebleu>=2.3.1
 nltk>=3.8.0
 
+# ── WebLLM conversion ─────────────────────────────────────────────────────────
+# mlc-llm is installed separately (requires CUDA/Metal GPU); see:
+#   https://llm.mlc.ai/docs/install/mlc_llm.html
+huggingface_hub>=0.23.0   # upload MLC weights to the Hub
+
 # ── Config & utilities ────────────────────────────────────────────────────────
 pyyaml>=6.0
 rich>=13.7.0
