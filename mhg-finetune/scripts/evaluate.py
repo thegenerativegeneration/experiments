@@ -106,12 +106,17 @@ def compute_perplexity(
             end = min(begin + max_length, seq_len)
             target_len = end - prev_end
 
+            window_input_ids = input_ids[:, begin:end]
+            labels = window_input_ids.clone()
+            if target_len < labels.size(1):
+                labels[:, :-target_len] = -100
+
             with torch.no_grad():
                 outputs = model(
-                    input_ids[:, begin:end],
-                    labels=input_ids[:, begin:end],
+                    window_input_ids,
+                    labels=labels,
                 )
-            # outputs.loss is mean NLL over all tokens in the window
+            # outputs.loss is mean NLL over the newly added tokens in the window
             total_nll += outputs.loss.item() * target_len
             total_tokens += target_len
             prev_end = end
