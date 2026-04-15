@@ -49,6 +49,8 @@ Notes:
 from __future__ import annotations
 
 import argparse
+import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -108,6 +110,56 @@ def run(cmd: list[str], desc: str) -> None:
         sys.exit(result.returncode)
 
 
+def resolve_mlc_cmd() -> list[str]:
+    """Resolve how to invoke MLC-LLM in a non-interactive subprocess."""
+    mlc_bin = shutil.which("mlc_llm")
+    if mlc_bin:
+        return [mlc_bin]
+
+    # Shell aliases are not available to subprocess.run; use module invocation.
+    try:
+        import mlc_llm  # noqa: F401
+    except ImportError:
+        console.print(
+            "[red]Could not find 'mlc_llm' executable or Python module in the "
+            "current environment.[/red]"
+        )
+        console.print(
+            "[yellow]Install into this environment or run with the project venv: "
+            "python -m pip install mlc-llm-nightly-cpu mlc-ai-nightly-cpu[/yellow]"
+        )
+        sys.exit(1)
+    return [sys.executable, "-m", "mlc_llm"]
+
+
+def ensure_mlc_compatible_config(merged_dir: str) -> None:
+    """Patch known config schema differences that break older MLC parsers."""
+    config_path = Path(merged_dir) / "config.json"
+    if not config_path.exists():
+        return
+
+    cfg = json.loads(config_path.read_text(encoding="utf-8"))
+    changed = False
+
+    # Newer HF configs may store rope_theta under rope_parameters.
+    rope_params = cfg.get("rope_parameters")
+    if "rope_theta" not in cfg and isinstance(rope_params, dict):
+        rope_theta = rope_params.get("rope_theta")
+        if rope_theta is not None:
+            cfg["rope_theta"] = rope_theta
+            changed = True
+            console.print(
+                "[yellow]Patched merged config for MLC compatibility: "
+                "copied rope_parameters.rope_theta -> rope_theta.[/yellow]"
+            )
+
+    if changed:
+        config_path.write_text(
+            json.dumps(cfg, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Stages
 # ---------------------------------------------------------------------------
@@ -154,10 +206,13 @@ def convert_with_mlc(
     """Run mlc_llm convert_weight and gen_config on the merged model."""
     mlc_path = Path(mlc_dir)
     mlc_path.mkdir(parents=True, exist_ok=True)
+    ensure_mlc_compatible_config(merged_dir)
+    mlc_cmd = resolve_mlc_cmd()
 
     run(
         [
-            "mlc_llm", "convert_weight",
+            *mlc_cmd,
+            "convert_weight",
             merged_dir,
             "--quantization", quantization,
             "--output", str(mlc_path),
@@ -167,7 +222,8 @@ def convert_with_mlc(
 
     run(
         [
-            "mlc_llm", "gen_config",
+            *mlc_cmd,
+            "gen_config",
             merged_dir,
             "--quantization", quantization,
             "--conv-template", conv_template,

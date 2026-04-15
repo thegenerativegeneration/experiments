@@ -56,13 +56,20 @@ from tqdm import tqdm
 
 USER_TEMPLATES: dict[str, list[str]] = {
     "mhg_conversation": [
-        "Waz ist dîn name und von wannen bist dû?",
         "Erzele mir von dînem leben und von dînem herren.",
         "Wâ bist dû gestern gewesen, und waz hâstu getân?",
         "Wie gefelt dir diu minne der vrouwen in disem lande?",
         "Sage mir: waz ist daz edelste dinc in dirre welt?",
         "Wie heizet der recke, der in dem gedichte ist genant?",
         "Von welchem lande koment die helden in disem mære?",
+        "Erzähle mir von deinen Abenteuern und Kämpfen als Ritter.",
+        "Was ist deine Meinung zu den höfischen Idealen von Treue und Ehre?",
+        "Erkläre mir einen belienigen Begriff aus dem Text, den du interessant findest.",
+        "Dude, what is upppp?",
+        "Hey, can you tell me about your day and your lord?",
+        "Where were you yesterday, and what did you do?",
+        "How do you like the ladies in this land?",
+        "Was denkst du, was das edelste Ding in dieser Welt ist?",
     ],
     "translation_to_modern": [
         "Translate this Middle High German passage into modern German:\n\n{text}",
@@ -70,8 +77,7 @@ USER_TEMPLATES: dict[str, list[str]] = {
         "Wie lautet dieser mittelhochdeutsche Text auf Neuhochdeutsch?\n\n{text}",
     ],
     "explanation": [
-        "Explain this Middle High German passage in English, "
-        "covering vocabulary, grammar, and literary context:\n\n{text}",
+        "Explain this Middle High German passage in English, covering vocabulary, grammar, and literary context:\n\n{text}",
         "What does this MHG text mean, and what grammatical features are notable?\n\n{text}",
         "Analyse the following Middle High German excerpt — meaning, grammar, style:\n\n{text}",
     ],
@@ -84,8 +90,8 @@ USER_TEMPLATES: dict[str, list[str]] = {
         "What are the notable features of the verb conjugation in this passage?",
     ],
     "paraphrase": [
-        "Formuliere diesen mittelhochdeutschen Abschnitt in einem anderen Stil um:\n\n{text}",
-        "Rewrite this MHG passage using different vocabulary while keeping the meaning:\n\n{text}",
+        "Formuliere diesen mittelhochdeutschen Abschnitt in einem anderen Stil ebenfalls auf mittelhochdeutsch um:\n\n{text}",
+        "Rewrite this MHG passage using different vocabulary while keeping the meaning and keeping the language in middle high German:\n\n{text}",
     ],
 }
 
@@ -171,6 +177,38 @@ def _build_system_prompt(scenario: str, system_prompts: dict[str, str]) -> str:
     return system_prompts.get(scenario, "You are a helpful assistant.")
 
 
+def _truncate_context_text(text: str, max_chars: int | None) -> str:
+    if max_chars is None or max_chars <= 0 or len(text) <= max_chars:
+        return text
+
+    # Trim at a word boundary to avoid cutting inside tokens unnecessarily.
+    truncated = text[:max_chars]
+    cut = truncated.rfind(" ")
+    if cut > int(max_chars * 0.6):
+        truncated = truncated[:cut]
+    return truncated.rstrip() + " ..."
+
+
+def _looks_cut_off(text: str) -> bool:
+    stripped = text.rstrip()
+    return stripped.endswith("…") or stripped.endswith("...") or stripped.endswith("-")
+
+
+def _passes_generation_checks(scenario: str, assistant: str) -> bool:
+    if not assistant or not assistant.strip():
+        return False
+
+    low = assistant.lower()
+    if scenario in {"mhg_conversation", "paraphrase"}:
+        if any(token in low for token in ("chatgpt", "openai", "language model", "ki")):
+            return False
+
+    if scenario in {"translation_to_modern", "paraphrase"} and _looks_cut_off(assistant):
+        return False
+
+    return True
+
+
 def generate_examples(
     chunk: dict[str, Any],
     n: int,
@@ -182,9 +220,12 @@ def generate_examples(
     results: list[dict[str, Any]] = []
     scenario_weights: dict[str, float] = config["scenario_weights"]
     system_prompts: dict[str, str] = config["system_prompts"]
-    max_tokens: int = config.get("max_tokens", 1024)
+    default_max_tokens: int = config.get("max_tokens", 1024)
+    scenario_max_tokens: dict[str, int] = config.get("scenario_max_tokens", {})
+    generation_attempts: int = int(config.get("generation_attempts", 2))
     temperature: float = config.get("temperature", 0.8)
-    chunk_text: str = chunk["text"]
+    max_context_chars: int | None = config.get("max_context_chars")
+    chunk_text: str = _truncate_context_text(chunk["text"], max_context_chars)
 
     for _ in range(n):
         scenario = _weighted_choice(scenario_weights)
@@ -203,15 +244,34 @@ def generate_examples(
         if dry_run:
             assistant = f"[DRY RUN — {scenario}]"
         else:
-            try:
-                if provider == "openai":
-                    assistant = _call_openai(system, user, model, max_tokens, temperature)
-                elif provider == "anthropic":
-                    assistant = _call_anthropic(system, user, model, max_tokens, temperature)
-                else:
-                    raise ValueError(f"Unknown provider: {provider!r}")
-            except Exception as exc:  # noqa: BLE001
-                tqdm.write(f"  WARNING: API error for chunk {chunk.get('chunk_id')}: {exc}")
+            max_tokens = int(scenario_max_tokens.get(scenario, default_max_tokens))
+            assistant = ""
+            generated = False
+
+            for _attempt in range(max(1, generation_attempts)):
+                try:
+                    if provider == "openai":
+                        candidate = _call_openai(system, user, model, max_tokens, temperature)
+                    elif provider == "anthropic":
+                        candidate = _call_anthropic(system, user, model, max_tokens, temperature)
+                    else:
+                        raise ValueError(f"Unknown provider: {provider!r}")
+                except Exception as exc:  # noqa: BLE001
+                    tqdm.write(
+                        f"  WARNING: API error for chunk {chunk.get('chunk_id')}: {exc}"
+                    )
+                    continue
+
+                if _passes_generation_checks(scenario, candidate):
+                    assistant = candidate
+                    generated = True
+                    break
+
+            if not generated:
+                tqdm.write(
+                    f"  WARNING: rejected generation for chunk {chunk.get('chunk_id')} "
+                    f"(scenario={scenario})"
+                )
                 continue
 
         record: dict[str, Any] = {
@@ -250,6 +310,10 @@ def main(argv: list[str] | None = None) -> None:
         help="Override examples_per_chunk",
     )
     parser.add_argument(
+        "--max-context-chars", type=int,
+        help="Maximum number of context characters inserted into prompts (<=0 disables)",
+    )
+    parser.add_argument(
         "--workers", type=int, default=8,
         help="Number of parallel API workers (default: 8)",
     )
@@ -272,6 +336,9 @@ def main(argv: list[str] | None = None) -> None:
     chunks_file   = Path(args.chunks_file or config["chunks_file"])
     output_file   = Path(args.output      or config["output_file"])
     n_per_chunk   = args.examples_per_chunk or config.get("examples_per_chunk", 4)
+
+    if args.max_context_chars is not None:
+        config["max_context_chars"] = args.max_context_chars
 
     if not chunks_file.exists():
         print(f"ERROR: chunks file not found: {chunks_file}", file=sys.stderr)
