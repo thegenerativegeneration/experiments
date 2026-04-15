@@ -51,7 +51,7 @@ learning_rate: 2.0e-4
 lr_scheduler_type: cosine
 warmup_ratio: 0.05
 max_seq_length: 2048
-packing: true                     # pack short examples to fill context window
+packing: false                     # pack short examples to fill context window
 
 # ── Optimisation ─────────────────────────────────────────────────────────────
 optim: paged_adamw_32bit
