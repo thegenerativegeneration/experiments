@@ -172,6 +172,11 @@ Key settings:
 provider: openai          # "openai" or "anthropic"
 model: gpt-4o
 examples_per_chunk: 4     # chat examples generated per text passage
+max_context_chars: 1200   # truncate long passage context before prompt injection
+generation_attempts: 2    # retry if output fails generation-time checks
+scenario_max_tokens:      # optional per-scenario completion caps
+    mhg_conversation: 220
+    translation_to_modern: 900
 temperature: 0.8
 scenario_weights:
   mhg_conversation:    0.30

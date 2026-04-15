@@ -9,10 +9,26 @@ provider: openai
 model: gpt-4o
 
 # Number of chat examples to generate per text chunk.
-examples_per_chunk: 4
+examples_per_chunk: 1
+
+# Maximum number of context characters injected into each prompt.
+# Use <= 0 to disable truncation.
+max_context_chars: 250
 
 # Maximum tokens the generator LLM may produce per call.
 max_tokens: 1024
+
+# Retries per example if generated output fails validation checks.
+generation_attempts: 2
+
+# Optional scenario-specific completion token caps.
+# Keeps short-format scenarios concise and reduces token waste.
+scenario_max_tokens:
+  mhg_conversation: 220
+  translation_to_modern: 900
+  explanation: 1000
+  grammar_qa: 700
+  paraphrase: 700
 
 # Sampling temperature (lower = more faithful, higher = more varied).
 temperature: 0.8
@@ -24,10 +40,10 @@ output_file: data/synthetic_raw.jsonl
 # Prompt scenario weights.
 # The generator samples one scenario per example according to these weights.
 scenario_weights:
-  mhg_conversation: 0.30   # MHG question → MHG answer
-  translation_to_modern: 0.25  # MHG excerpt → Modern German
+  mhg_conversation: 0.34   # MHG question → MHG answer
+  translation_to_modern: 0.2  # MHG excerpt → Modern German
   explanation: 0.20         # MHG excerpt → English explanation + grammar notes
-  grammar_qa: 0.15          # Grammar question → MHG-grounded answer
+  grammar_qa: 0.10          # Grammar question → MHG-grounded answer
   paraphrase: 0.10          # MHG passage → MHG paraphrase (different style)
 
 # System prompts per scenario.
@@ -55,7 +71,7 @@ system_prompts:
 
 # Back-translation validation
 back_translation:
-  enabled: true
+  enabled: false
   # Minimum chrF score (0–100) between back-translated MHG and original text.
   # Examples below this threshold are flagged for removal by clean_data.py.
   min_chrf: 20.0

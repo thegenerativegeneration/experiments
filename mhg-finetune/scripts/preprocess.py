@@ -55,6 +55,7 @@ _EDITORIAL_RE = re.compile(r"\[(?!.*\].*\[).*?\]")
 
 # Collapse multiple blank lines into one
 _MULTI_BLANK_RE = re.compile(r"\n{3,}")
+_SENTENCE_END_RE = re.compile(r"[\.!\?:;][\)\]\"'»”]*\s")
 
 
 def _clean(text: str) -> str:
@@ -79,6 +80,21 @@ def _clean(text: str) -> str:
 
 def _token_count(text: str) -> int:
     return len(_ENCODING.encode(text))
+
+
+def _trim_to_sentence_boundary(text: str, min_fraction: float = 0.7) -> str:
+    """Trim to the last sentence-like boundary near the end of the chunk."""
+    if not text:
+        return text
+
+    matches = list(_SENTENCE_END_RE.finditer(text))
+    if not matches:
+        return text
+
+    last = matches[-1].end()
+    if last >= int(len(text) * min_fraction):
+        return text[:last].strip()
+    return text
 
 
 def _chunk_text(
@@ -107,7 +123,12 @@ def _chunk_text(
         end = min(len(tokens), start + target)
         chunk_tokens = tokens[start:end]
         if len(chunk_tokens) >= min_tokens:
-            chunks.append(_ENCODING.decode(chunk_tokens).strip())
+            chunk_text = _ENCODING.decode(chunk_tokens).strip()
+            if end < len(tokens):
+                # Prefer complete sentence endings except for the final chunk.
+                chunk_text = _trim_to_sentence_boundary(chunk_text)
+            if _token_count(chunk_text) >= min_tokens:
+                chunks.append(chunk_text)
 
         if end >= len(tokens):
             break
